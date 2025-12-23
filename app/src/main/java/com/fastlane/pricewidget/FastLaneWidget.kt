@@ -188,11 +188,7 @@ class FastLaneWidget : AppWidgetProvider() {
             
             // Get current theme
             val themeName = WidgetPreferences.getColorTheme(context)
-            val theme = try {
-                ColorTheme.values().find { it.id == themeName } ?: ColorTheme.PASTEL
-            } catch (e: Exception) {
-                ColorTheme.PASTEL
-            }
+            val theme = ColorTheme.values().find { it.id == themeName } ?: ColorTheme.PASTEL
             val colors = theme.getColors()
             
             // Update background color based on price and thresholds

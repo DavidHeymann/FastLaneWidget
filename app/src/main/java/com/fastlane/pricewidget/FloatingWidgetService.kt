@@ -298,11 +298,7 @@ class FloatingWidgetService : Service() {
                     
                     // Get current theme
                     val themeName = WidgetPreferences.getColorTheme(this)
-                    val theme = try {
-                        ColorTheme.values().find { it.id == themeName } ?: ColorTheme.PASTEL
-                    } catch (e: Exception) {
-                        ColorTheme.PASTEL
-                    }
+                    val theme = ColorTheme.values().find { it.id == themeName } ?: ColorTheme.PASTEL
                     val colors = theme.getColors()
                     
                     val color = when {
