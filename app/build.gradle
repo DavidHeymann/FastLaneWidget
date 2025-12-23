@@ -11,15 +11,33 @@ android {
         applicationId "com.fastlane.pricewidget"
         minSdk 26
         targetSdk 34
-        versionCode 27
-        versionName "2.7"
+        versionCode 29
+        versionName "2.9"
+    }
+
+    signingConfigs {
+        release {
+            // Read from environment variables (set by GitHub Actions)
+            def keystorePropertiesFile = rootProject.file("release-keystore.jks")
+            if (keystorePropertiesFile.exists() || System.getenv("KEYSTORE_PASSWORD")) {
+                storeFile file('release-keystore.jks')
+                storePassword System.getenv("KEYSTORE_PASSWORD") ?: "android"
+                keyAlias System.getenv("KEY_ALIAS") ?: "androiddebugkey"
+                keyPassword System.getenv("KEYSTORE_PASSWORD") ?: "android"
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug
+            // Use release signing if keystore exists, otherwise debug
+            if (System.getenv("KEYSTORE_PASSWORD")) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
         }
     }
     

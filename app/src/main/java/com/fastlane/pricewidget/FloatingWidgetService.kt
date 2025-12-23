@@ -87,18 +87,20 @@ class FloatingWidgetService : Service() {
         isDrawerMode = WidgetPreferences.isDrawerMode(this)
         
         if (isDrawerMode) {
-            // Start as collapsed drawer on the right edge (hidden), centered vertically
-            params.gravity = Gravity.CENTER_VERTICAL or Gravity.END
-            params.y = 0  // CENTER_VERTICAL will handle this
+            // Start as collapsed drawer on the right edge (hidden)
+            // Use TOP + END gravity for consistent Y positioning
+            params.gravity = Gravity.TOP or Gravity.END
+            params.y = 100  // Start at 100px from top (user can drag to any height)
             
             // Wait for view to be measured
             floatingView?.post {
                 val viewWidth = floatingView?.width ?: 0
-                // Hide completely, show only 15px tab
-                params.x = -(viewWidth - 15)
+                // Hide almost completely, show only 15px tab
+                // With Gravity.END, positive x moves it OFF screen (to the right)
+                params.x = viewWidth - 15
                 windowManager?.updateViewLayout(floatingView, params)
             }
-            params.x = -200 // Initial guess
+            params.x = 200 // Initial guess (positive = off-screen with END gravity)
         } else {
             // Regular floating mode - start at top-left
             params.gravity = Gravity.TOP or Gravity.START
@@ -208,24 +210,26 @@ class FloatingWidgetService : Service() {
         // Determine which edge is closer
         val isLeftCloser = x < screenWidth / 2
         
-        // Save the Y position (height)
-        val centerY = y.toInt()
+        // Calculate Y position EXACTLY as it was during dragging
+        // We want the CENTER of the widget to be at 'y' position
+        val targetY = (y - (floatingView?.height ?: 0) / 2).toInt()
         
         // Snap to the nearest edge
         if (isLeftCloser) {
             // Snap to left edge
-            params.gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            params.gravity = Gravity.TOP or Gravity.START
         } else {
             // Snap to right edge
-            params.gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            params.gravity = Gravity.TOP or Gravity.END
         }
         
-        // Set Y position to maintain height
-        params.y = centerY - (floatingView?.height ?: 0) / 2
+        // Set Y position to maintain exact height where user released
+        params.y = targetY
         
         // Collapse to show only tab
         val viewWidth = floatingView?.width ?: 0
-        params.x = -(viewWidth - 15)
+        // With END/START gravity, positive x pushes widget off-screen
+        params.x = viewWidth - 15
         
         windowManager?.updateViewLayout(floatingView, params)
         isDrawerExpanded = false
@@ -257,7 +261,7 @@ class FloatingWidgetService : Service() {
     private fun expandDrawer() {
         isDrawerExpanded = true
         
-        // Animate to fully visible
+        // Animate to fully visible (x=0 means fully on screen)
         params.x = 0
         windowManager?.updateViewLayout(floatingView, params)
         
@@ -272,8 +276,9 @@ class FloatingWidgetService : Service() {
         autoCollapseHandler.removeCallbacksAndMessages(null)
         
         // Animate to hidden (show only 15px tab)
+        // With Gravity.END, positive x pushes widget OFF screen to the right
         val viewWidth = floatingView?.width ?: 0
-        params.x = -(viewWidth - 15)
+        params.x = viewWidth - 15
         windowManager?.updateViewLayout(floatingView, params)
     }
     

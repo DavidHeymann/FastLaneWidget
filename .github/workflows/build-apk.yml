@@ -37,10 +37,37 @@ jobs:
     - name: Make gradlew executable
       run: chmod +x ./gradlew
     
+    # Decode keystore from base64 secret (if exists)
+    - name: Decode Keystore
+      if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+      run: |
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release-keystore.jks
+        echo "Keystore decoded successfully"
+    
+    # Build Release APK if keystore exists, otherwise Debug
+    - name: Build Release APK
+      if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+      run: ./gradlew assembleRelease --stacktrace --no-daemon
+      env:
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+    
     - name: Build Debug APK
+      if: ${{ secrets.KEYSTORE_BASE64 == '' }}
       run: ./gradlew assembleDebug --stacktrace --no-daemon
     
-    - name: Upload APK
+    # Upload Release APK if it exists
+    - name: Upload Release APK
+      if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: FastLaneWidget-Release
+        path: app/build/outputs/apk/release/app-release.apk
+        retention-days: 30
+    
+    # Upload Debug APK if Release doesn't exist
+    - name: Upload Debug APK
+      if: ${{ secrets.KEYSTORE_BASE64 == '' }}
       uses: actions/upload-artifact@v4
       with:
         name: FastLaneWidget-Debug

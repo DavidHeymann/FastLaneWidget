@@ -444,7 +444,7 @@
                     android:id="@+id/threshold1_seekbar"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:max="50"
+                    android:max="300"
                     android:progress="10" />
                 
                 <View
@@ -484,7 +484,7 @@
                     android:id="@+id/threshold2_seekbar"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:max="50"
+                    android:max="300"
                     android:progress="25" />
                 
                 <LinearLayout
@@ -565,7 +565,7 @@
             android:id="@+id/save_button"
             android:layout_width="match_parent"
             android:layout_height="60dp"
-            android:text="💾 שמור שינויים"
+            android:text="✓ שמור הגדרות"
             android:textSize="18sp"
             android:textStyle="bold"
             android:backgroundTint="#27AE60"

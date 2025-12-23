@@ -1,64 +1,86 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_container"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/widget_background"
-    android:gravity="center"
-    android:orientation="vertical"
-    android:padding="8dp">
+    android:layout_height="match_parent">
 
-    <!-- Large logo for 2x2+ -->
-    <ImageView
-        android:id="@+id/logo_large"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:contentDescription="@string/app_name"
-        android:src="@drawable/logo_large" />
-
-    <!-- Loading indicator -->
-    <ProgressBar
-        android:id="@+id/loading_progress"
-        style="?android:attr/progressBarStyleSmall"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:layout_marginTop="4dp"
-        android:visibility="gone" />
-
-    <!-- Price and Shekel in one row -->
+    <!-- Main widget content (clickable for settings) -->
     <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-        
-        <TextView
-            android:id="@+id/price_text"
+        android:id="@+id/widget_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_background"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <!-- Large logo for 2x2+ -->
+        <ImageView
+            android:id="@+id/logo_large"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:contentDescription="@string/app_name"
+            android:src="@drawable/logo_large" />
+
+        <!-- Loading indicator -->
+        <ProgressBar
+            android:id="@+id/loading_progress"
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginTop="4dp"
+            android:visibility="gone" />
+
+        <!-- Price and Shekel in one row -->
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="--"
-            android:textColor="@color/widget_text"
-            android:textSize="36sp"
-            android:textStyle="bold" />
+            android:layout_marginTop="4dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            
+            <TextView
+                android:id="@+id/price_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textColor="@color/widget_text"
+                android:textSize="36sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/shekel_sign"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="2dp"
+                android:text="₪"
+                android:textColor="@color/widget_text"
+                android:textSize="28sp" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/shekel_sign"
+            android:id="@+id/update_time"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="2dp"
-            android:text="₪"
-            android:textColor="@color/widget_text"
-            android:textSize="28sp" />
+            android:layout_marginTop="4dp"
+            android:text="@string/loading"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="10sp" />
+
     </LinearLayout>
 
+    <!-- Refresh button in top-right corner -->
     <TextView
-        android:id="@+id/update_time"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="@string/loading"
-        android:textColor="@color/widget_text_secondary"
-        android:textSize="10sp" />
+        android:id="@+id/refresh_button"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="4dp"
+        android:background="@android:color/transparent"
+        android:gravity="center"
+        android:text="↻"
+        android:textColor="@color/widget_text"
+        android:textSize="20sp"
+        android:alpha="0.7"
+        android:contentDescription="רענון" />
 
-</LinearLayout>
+</FrameLayout>

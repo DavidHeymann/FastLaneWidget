@@ -236,15 +236,23 @@ class FastLaneWidget : AppWidgetProvider() {
                 views.setTextViewText(R.id.update_time, currentTime)
             }
             
-            // Set click listener
-            val intent = Intent(context, FastLaneWidget::class.java).apply {
-                action = ACTION_REFRESH
-            }
-            val pendingIntent = PendingIntent.getBroadcast(
-                context, 0, intent,
+            // Set click listener to open MainActivity (settings)
+            val settingsIntent = Intent(context, MainActivity::class.java)
+            val settingsPendingIntent = PendingIntent.getActivity(
+                context, 0, settingsIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_container, settingsPendingIntent)
+            
+            // Set click listener for refresh button
+            val refreshIntent = Intent(context, FastLaneWidget::class.java).apply {
+                action = ACTION_REFRESH
+            }
+            val refreshPendingIntent = PendingIntent.getBroadcast(
+                context, 1, refreshIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.refresh_button, refreshPendingIntent)
             
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }

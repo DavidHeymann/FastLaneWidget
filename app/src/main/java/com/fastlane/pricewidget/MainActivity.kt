@@ -35,6 +35,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var refreshButton: Button
 
     private val dayCheckBoxes = mutableMapOf<Int, CheckBox>()
+    
+    // Temporary threshold values (saved only on button click)
+    private var tempThreshold1: Int = 0
+    private var tempThreshold2: Int = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -193,13 +197,14 @@ class MainActivity : AppCompatActivity() {
         // Price alerts
         priceAlertSwitch.isChecked = WidgetPreferences.isPriceAlertEnabled(this)
         
-        val threshold1 = WidgetPreferences.getLowToMediumThreshold(this)
-        threshold1SeekBar.progress = threshold1
-        threshold1Text.text = "₪$threshold1"
+        // Load thresholds into temp variables (will be saved on button click)
+        tempThreshold1 = WidgetPreferences.getLowToMediumThreshold(this)
+        threshold1SeekBar.progress = tempThreshold1
+        threshold1Text.text = "₪$tempThreshold1"
         
-        val threshold2 = WidgetPreferences.getMediumToHighThreshold(this)
-        threshold2SeekBar.progress = threshold2
-        threshold2Text.text = "₪$threshold2"
+        tempThreshold2 = WidgetPreferences.getMediumToHighThreshold(this)
+        threshold2SeekBar.progress = tempThreshold2
+        threshold2Text.text = "₪$tempThreshold2"
     }
 
     private fun setupListeners() {
@@ -314,25 +319,39 @@ class MainActivity : AppCompatActivity() {
         threshold1SeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 threshold1Text.text = "₪$progress"
-                if (fromUser) {
-                    WidgetPreferences.setLowToMediumThreshold(this@MainActivity, progress)
-                    updateWidgets()
-                }
+                // Update temp variable only
+                tempThreshold1 = progress
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                // Validate when user releases
+                if (tempThreshold1 >= tempThreshold2) {
+                    tempThreshold1 = tempThreshold2 - 1
+                    seekBar?.progress = tempThreshold1
+                    threshold1Text.text = "₪$tempThreshold1"
+                    Toast.makeText(this@MainActivity, "סף ירוק→צהוב חייב להיות נמוך מסף צהוב→אדום", Toast.LENGTH_SHORT).show()
+                }
+                // Don't save yet - wait for save button click
+            }
         })
         
         threshold2SeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 threshold2Text.text = "₪$progress"
-                if (fromUser) {
-                    WidgetPreferences.setMediumToHighThreshold(this@MainActivity, progress)
-                    updateWidgets()
-                }
+                // Update temp variable only
+                tempThreshold2 = progress
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                // Validate when user releases
+                if (tempThreshold2 <= tempThreshold1) {
+                    tempThreshold2 = tempThreshold1 + 1
+                    seekBar?.progress = tempThreshold2
+                    threshold2Text.text = "₪$tempThreshold2"
+                    Toast.makeText(this@MainActivity, "סף צהוב→אדום חייב להיות גבוה מסף ירוק→צהוב", Toast.LENGTH_SHORT).show()
+                }
+                // Don't save yet - wait for save button click
+            }
         })
 
         // Reset alerts button
@@ -374,11 +393,16 @@ class MainActivity : AppCompatActivity() {
         
         // Save button - apply all changes
         saveButton.setOnClickListener {
+            // Save thresholds now
+            WidgetPreferences.setLowToMediumThreshold(this, tempThreshold1)
+            WidgetPreferences.setMediumToHighThreshold(this, tempThreshold2)
+            
+            // Update widgets with new thresholds
             updateWidgets()
             if (WidgetPreferences.isFloatingWidgetEnabled(this)) {
                 restartFloatingWidget()
             }
-            Toast.makeText(this, "✅ השינויים נשמרו!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "✅ ההגדרות נשמרו!", Toast.LENGTH_SHORT).show()
         }
     }
 
