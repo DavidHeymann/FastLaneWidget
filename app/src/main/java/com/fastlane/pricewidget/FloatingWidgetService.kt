@@ -221,30 +221,40 @@ class FloatingWidgetService : Service() {
         // Show progress
         progressBar?.visibility = View.VISIBLE
         
-        PriceApi.fetchPrice(this) { price ->
-            // Hide progress
-            progressBar?.visibility = View.GONE
-            
-            if (price != null) {
-                priceText?.text = price.toString()
+        Thread {
+            try {
+                val price = PriceApi.getCurrentPrice()
                 
-                // Update color based on threshold
-                val threshold1 = WidgetPreferences.getLowToMediumThreshold(this)
-                val threshold2 = WidgetPreferences.getMediumToHighThreshold(this)
-                
-                val color = when {
-                    price <= threshold1 -> android.graphics.Color.parseColor("#27AE60")
-                    price <= threshold2 -> android.graphics.Color.parseColor("#F39C12")
-                    else -> android.graphics.Color.parseColor("#E74C3C")
+                // Update UI on main thread
+                Handler(Looper.getMainLooper()).post {
+                    // Hide progress
+                    progressBar?.visibility = View.GONE
+                    
+                    priceText?.text = price.toString()
+                    
+                    // Update color based on threshold
+                    val threshold1 = WidgetPreferences.getLowToMediumThreshold(this)
+                    val threshold2 = WidgetPreferences.getMediumToHighThreshold(this)
+                    
+                    val color = when {
+                        price <= threshold1 -> android.graphics.Color.parseColor("#27AE60")
+                        price <= threshold2 -> android.graphics.Color.parseColor("#F39C12")
+                        else -> android.graphics.Color.parseColor("#E74C3C")
+                    }
+                    
+                    priceText?.setTextColor(color)
+                    shekelText?.setTextColor(color)
+                    
+                    // Check for notifications
+                    PriceNotificationManager.checkAndNotify(this, price)
                 }
-                
-                priceText?.setTextColor(color)
-                shekelText?.setTextColor(color)
-                
-                // Check for notifications
-                PriceNotificationManager.checkAndNotify(this, price)
+            } catch (e: Exception) {
+                // Hide progress on error
+                Handler(Looper.getMainLooper()).post {
+                    progressBar?.visibility = View.GONE
+                }
             }
-        }
+        }.start()
     }
 
     override fun onDestroy() {
