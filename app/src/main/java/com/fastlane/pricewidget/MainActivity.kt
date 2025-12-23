@@ -131,11 +131,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Setup color theme spinner
-        val themes = ColorTheme.values().map { it.displayName }
+        val themeNames = listOf("פסטל רך", "צבעוני", "כהה", "מינימלי", "ניאון")
+        val themeIds = listOf("pastel", "vibrant", "dark", "minimal", "neon")
         colorThemeSpinner.adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_item,
-            themes
+            themeNames
         ).apply {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
@@ -168,8 +169,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Color theme
-        val currentTheme = WidgetPreferences.getColorTheme(this)
-        colorThemeSpinner.setSelection(ColorTheme.values().indexOf(currentTheme))
+        val currentThemeId = WidgetPreferences.getColorTheme(this)
+        val themeIds = listOf("pastel", "vibrant", "dark", "minimal", "neon")
+        val themeIndex = themeIds.indexOf(currentThemeId).takeIf { it >= 0 } ?: 0
+        colorThemeSpinner.setSelection(themeIndex)
 
         // Floating widget
         floatingWidgetSwitch.isChecked = WidgetPreferences.isFloatingWidgetEnabled(this)
@@ -242,8 +245,9 @@ class MainActivity : AppCompatActivity() {
         // Color theme
         colorThemeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-                val theme = ColorTheme.values()[position]
-                WidgetPreferences.setColorTheme(this@MainActivity, theme)
+                val themeIds = listOf("pastel", "vibrant", "dark", "minimal", "neon")
+                val themeId = themeIds[position]
+                WidgetPreferences.setColorTheme(this@MainActivity, themeId)
                 updateWidgets()
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}

@@ -78,13 +78,12 @@ object WidgetPreferences {
     }
     
     // Color theme
-    fun getColorTheme(context: Context): ColorTheme {
-        val themeName = getPrefs(context).getString(KEY_COLOR_THEME, DEFAULT_THEME) ?: DEFAULT_THEME
-        return ColorTheme.values().find { it.id == themeName } ?: ColorTheme.PASTEL
+    fun getColorTheme(context: Context): String {
+        return getPrefs(context).getString(KEY_COLOR_THEME, DEFAULT_THEME) ?: DEFAULT_THEME
     }
     
-    fun setColorTheme(context: Context, theme: ColorTheme) {
-        getPrefs(context).edit().putString(KEY_COLOR_THEME, theme.id).apply()
+    fun setColorTheme(context: Context, themeId: String) {
+        getPrefs(context).edit().putString(KEY_COLOR_THEME, themeId).apply()
     }
     
     // Floating widget
@@ -166,65 +165,3 @@ enum class PriceZone {
     YELLOW,  // threshold1 < price ≤ threshold2
     RED      // > threshold2
 }
-
-enum class ColorTheme(val id: String, val displayName: String) {
-    PASTEL("pastel", "פסטל רך"),
-    VIBRANT("vibrant", "צבעוני"),
-    DARK("dark", "כהה"),
-    MINIMAL("minimal", "מינימלי"),
-    NEON("neon", "ניאון");
-    
-    fun getColors(): ThemeColors {
-        return when (this) {
-            PASTEL -> ThemeColors(
-                greenStart = "#A8E6CF",
-                greenEnd = "#C1F0D5",
-                yellowStart = "#FFE5B4",
-                yellowEnd = "#FFF4D6",
-                redStart = "#FFB3BA",
-                redEnd = "#FFCCD1"
-            )
-            VIBRANT -> ThemeColors(
-                greenStart = "#4CAF50",
-                greenEnd = "#66BB6A",
-                yellowStart = "#FFC107",
-                yellowEnd = "#FFD54F",
-                redStart = "#F44336",
-                redEnd = "#EF5350"
-            )
-            DARK -> ThemeColors(
-                greenStart = "#2E7D32",
-                greenEnd = "#388E3C",
-                yellowStart = "#F57C00",
-                yellowEnd = "#FB8C00",
-                redStart = "#C62828",
-                redEnd = "#D32F2F"
-            )
-            MINIMAL -> ThemeColors(
-                greenStart = "#E8F5E9",
-                greenEnd = "#F1F8F4",
-                yellowStart = "#FFF8E1",
-                yellowEnd = "#FFFDE7",
-                redStart = "#FFEBEE",
-                redEnd = "#FFCDD2"
-            )
-            NEON -> ThemeColors(
-                greenStart = "#00FF88",
-                greenEnd = "#00FFAA",
-                yellowStart = "#FFFF00",
-                yellowEnd = "#FFFF66",
-                redStart = "#FF00FF",
-                redEnd = "#FF66FF"
-            )
-        }
-    }
-}
-
-data class ThemeColors(
-    val greenStart: String,
-    val greenEnd: String,
-    val yellowStart: String,
-    val yellowEnd: String,
-    val redStart: String,
-    val redEnd: String
-)
