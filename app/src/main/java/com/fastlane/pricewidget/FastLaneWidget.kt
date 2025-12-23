@@ -186,26 +186,45 @@ class FastLaneWidget : AppWidgetProvider() {
             // Update price
             views.setTextViewText(R.id.price_text, price.toString())
             
-            // Get current theme colors
+            // Get current theme colors - inline for simplicity
             val themeName = WidgetPreferences.getColorTheme(context)
-            val colors = when (themeName) {
-                "vibrant" -> ThemeColors("#4CAF50", "#66BB6A", "#FFC107", "#FFD54F", "#F44336", "#EF5350")
-                "dark" -> ThemeColors("#2E7D32", "#388E3C", "#F57C00", "#FB8C00", "#C62828", "#D32F2F")
-                "minimal" -> ThemeColors("#E8F5E9", "#F1F8F4", "#FFF8E1", "#FFFDE7", "#FFEBEE", "#FFCDD2")
-                "neon" -> ThemeColors("#00FF88", "#00FFAA", "#FFFF00", "#FFFF66", "#FF00FF", "#FF66FF")
-                else -> ThemeColors("#A8E6CF", "#C1F0D5", "#FFE5B4", "#FFF4D6", "#FFB3BA", "#FFCCD1") // pastel default
-            }
             
             // Update background color based on price and thresholds
             val threshold1 = WidgetPreferences.getLowToMediumThreshold(context)
             val threshold2 = WidgetPreferences.getMediumToHighThreshold(context)
             
-            // Use start color as main background
-            val backgroundColor = when {
-                price <= threshold1 -> android.graphics.Color.parseColor(colors.greenStart)
-                price <= threshold2 -> android.graphics.Color.parseColor(colors.yellowStart)
-                else -> android.graphics.Color.parseColor(colors.redStart)
+            // Determine color based on price zone and theme
+            val colorHex = when {
+                price <= threshold1 -> { // Green zone
+                    when (themeName) {
+                        "vibrant" -> "#4CAF50"
+                        "dark" -> "#2E7D32"
+                        "minimal" -> "#E8F5E9"
+                        "neon" -> "#00FF88"
+                        else -> "#A8E6CF" // pastel
+                    }
+                }
+                price <= threshold2 -> { // Yellow zone
+                    when (themeName) {
+                        "vibrant" -> "#FFC107"
+                        "dark" -> "#F57C00"
+                        "minimal" -> "#FFF8E1"
+                        "neon" -> "#FFFF00"
+                        else -> "#FFE5B4" // pastel
+                    }
+                }
+                else -> { // Red zone
+                    when (themeName) {
+                        "vibrant" -> "#F44336"
+                        "dark" -> "#C62828"
+                        "minimal" -> "#FFEBEE"
+                        "neon" -> "#FF00FF"
+                        else -> "#FFB3BA" // pastel
+                    }
+                }
             }
+            
+            val backgroundColor = android.graphics.Color.parseColor(colorHex)
             
             // Set solid background color with rounded corners
             views.setInt(R.id.widget_container, "setBackgroundColor", backgroundColor)
