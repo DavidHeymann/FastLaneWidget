@@ -41,6 +41,17 @@ class FastLaneWidget : AppWidgetProvider() {
         }
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: android.os.Bundle
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        // Update widget when size changes
+        fetchPriceAndUpdate(context)
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         
@@ -67,7 +78,20 @@ class FastLaneWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int
     ) {
-        val views = RemoteViews(context.packageName, R.layout.widget_layout)
+        // Get widget size
+        val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+        val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+        val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
+        
+        // Determine which layout to use based on size
+        // 1x1 = approximately 40-80dp, 2x2 = approximately 110-180dp
+        val layoutId = if (minWidth < 100 || minHeight < 100) {
+            R.layout.widget_layout_small  // 1x1
+        } else {
+            R.layout.widget_layout  // 2x2+
+        }
+        
+        val views = RemoteViews(context.packageName, layoutId)
         
         // Set click listener for manual refresh
         val intent = Intent(context, FastLaneWidget::class.java).apply {
@@ -83,6 +107,9 @@ class FastLaneWidget : AppWidgetProvider() {
     }
 
     private fun fetchPriceAndUpdate(context: Context) {
+        // Show loading state
+        showLoadingState(context)
+        
         Thread {
             try {
                 val price = PriceApi.getCurrentPrice()
@@ -99,30 +126,83 @@ class FastLaneWidget : AppWidgetProvider() {
         }.start()
     }
 
-    private fun updateWidgetWithPrice(context: Context, price: Int) {
+    private fun showLoadingState(context: Context) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val ids = appWidgetManager.getAppWidgetIds(
             ComponentName(context, FastLaneWidget::class.java)
         )
 
         for (appWidgetId in ids) {
-            val views = RemoteViews(context.packageName, R.layout.widget_layout)
+            val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+            val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+            val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
+            
+            val layoutId = if (minWidth < 100 || minHeight < 100) {
+                R.layout.widget_layout_small
+            } else {
+                R.layout.widget_layout
+            }
+            
+            val views = RemoteViews(context.packageName, layoutId)
+            
+            // Show loading indicator
+            views.setViewVisibility(R.id.loading_progress, android.view.View.VISIBLE)
+            
+            // Update time text to show "מעדכן..." for large layout
+            if (layoutId == R.layout.widget_layout) {
+                views.setTextViewText(R.id.update_time, "מעדכן...")
+            }
+            
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
+    }
+
+    private fun updateWidgetWithPrice(context: Context, price: Int) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val ids = appWidgetManager.getAppWidgetIds(
+            ComponentName(context, FastLaneWidget::class.java)
+        )
+
+        // Check if we should send notification
+        PriceNotificationManager.checkAndNotify(context, price)
+
+        for (appWidgetId in ids) {
+            // Get widget size to determine layout
+            val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+            val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+            val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
+            
+            val layoutId = if (minWidth < 100 || minHeight < 100) {
+                R.layout.widget_layout_small  // 1x1
+            } else {
+                R.layout.widget_layout  // 2x2+
+            }
+            
+            val views = RemoteViews(context.packageName, layoutId)
+            
+            // Hide loading indicator
+            views.setViewVisibility(R.id.loading_progress, android.view.View.GONE)
             
             // Update price
             views.setTextViewText(R.id.price_text, price.toString())
             
-            // Update background with gradient drawable based on price
+            // Update background with gradient drawable based on price and thresholds
+            val threshold1 = WidgetPreferences.getLowToMediumThreshold(context)
+            val threshold2 = WidgetPreferences.getMediumToHighThreshold(context)
+            
             val backgroundRes = when {
-                price <= 10 -> R.drawable.widget_background_green
-                price <= 25 -> R.drawable.widget_background_yellow
+                price <= threshold1 -> R.drawable.widget_background_green
+                price <= threshold2 -> R.drawable.widget_background_yellow
                 else -> R.drawable.widget_background_red
             }
             views.setInt(R.id.widget_container, "setBackgroundResource", backgroundRes)
             
-            // Update time
-            val timeFormat = SimpleDateFormat("HH:mm", Locale("he", "IL"))
-            val currentTime = timeFormat.format(Date())
-            views.setTextViewText(R.id.update_time, currentTime)
+            // Update time (only for large layout)
+            if (layoutId == R.layout.widget_layout) {
+                val timeFormat = SimpleDateFormat("HH:mm", Locale("he", "IL"))
+                val currentTime = timeFormat.format(Date())
+                views.setTextViewText(R.id.update_time, currentTime)
+            }
             
             // Set click listener
             val intent = Intent(context, FastLaneWidget::class.java).apply {
@@ -145,9 +225,26 @@ class FastLaneWidget : AppWidgetProvider() {
         )
 
         for (appWidgetId in ids) {
-            val views = RemoteViews(context.packageName, R.layout.widget_layout)
+            val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+            val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+            val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
+            
+            val layoutId = if (minWidth < 100 || minHeight < 100) {
+                R.layout.widget_layout_small
+            } else {
+                R.layout.widget_layout
+            }
+            
+            val views = RemoteViews(context.packageName, layoutId)
+            
+            // Hide loading indicator
+            views.setViewVisibility(R.id.loading_progress, android.view.View.GONE)
+            
             views.setTextViewText(R.id.price_text, "!")
-            views.setTextViewText(R.id.update_time, "שגיאה")
+            
+            if (layoutId == R.layout.widget_layout) {
+                views.setTextViewText(R.id.update_time, "שגיאה")
+            }
             
             val intent = Intent(context, FastLaneWidget::class.java).apply {
                 action = ACTION_REFRESH

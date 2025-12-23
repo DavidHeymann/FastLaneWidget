@@ -6,30 +6,30 @@
     android:background="@drawable/widget_background"
     android:gravity="center"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:padding="4dp">
 
-    <!-- Large logo for 2x2+ -->
+    <!-- Small logo for 1x1 -->
     <ImageView
-        android:id="@+id/logo_large"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:id="@+id/logo_small"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
         android:contentDescription="@string/app_name"
-        android:src="@drawable/logo_large" />
+        android:src="@drawable/logo_small" />
 
-    <!-- Loading indicator -->
+    <!-- Loading indicator for small widget -->
     <ProgressBar
         android:id="@+id/loading_progress"
         style="?android:attr/progressBarStyleSmall"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:layout_marginTop="4dp"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_marginTop="2dp"
         android:visibility="gone" />
 
-    <!-- Price and Shekel in one row -->
+    <!-- Compact price display -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="2dp"
         android:orientation="horizontal"
         android:gravity="center_vertical">
         
@@ -39,26 +39,17 @@
             android:layout_height="wrap_content"
             android:text="--"
             android:textColor="@color/widget_text"
-            android:textSize="36sp"
+            android:textSize="20sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/shekel_sign"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="2dp"
+            android:layout_marginStart="1dp"
             android:text="₪"
             android:textColor="@color/widget_text"
-            android:textSize="28sp" />
+            android:textSize="16sp" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/update_time"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="@string/loading"
-        android:textColor="@color/widget_text_secondary"
-        android:textSize="10sp" />
 
 </LinearLayout>

@@ -1,59 +1,533 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:gravity="center"
-    android:orientation="vertical"
-    android:padding="24dp">
+    android:background="#F5F5F5"
+    android:fillViewport="true">
 
-    <ImageView
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:contentDescription="@string/app_name"
-        android:src="@drawable/ic_launcher" />
-
-    <TextView
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="@string/app_name"
-        android:textSize="24sp"
-        android:textStyle="bold" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <TextView
-        android:id="@+id/status_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:gravity="center"
-        android:text="@string/loading"
-        android:textSize="16sp" />
+        <!-- Header -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="נתיב מהיר - מחיר"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#2C3E50"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
 
-    <TextView
-        android:id="@+id/price_display"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="--"
-        android:textColor="@color/price_green"
-        android:textSize="72sp"
-        android:textStyle="bold" />
+        <!-- Current Price Card -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:elevation="4dp">
+            
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:gravity="center">
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="המחיר הנוכחי"
+                    android:textSize="16sp"
+                    android:textColor="#7F8C8D" />
+                
+                <TextView
+                    android:id="@+id/current_price_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--"
+                    android:textSize="48sp"
+                    android:textStyle="bold"
+                    android:textColor="#2C3E50"
+                    android:layout_marginTop="8dp" />
+                
+                <Button
+                    android:id="@+id/refresh_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="רענן מחיר"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
-    <Button
-        android:id="@+id/refresh_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="רענן מחיר"
-        android:textSize="18sp" />
+        <!-- Auto Update Section -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:elevation="4dp">
+            
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="⏰ עדכון אוטומטי"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:textColor="#2C3E50"
+                    android:layout_marginBottom="12dp" />
+                
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="הפעל עדכון אוטומטי"
+                        android:textSize="16sp" />
+                    
+                    <Switch
+                        android:id="@+id/auto_update_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+                
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginVertical="12dp" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="שעות פעילות"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+                
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center">
+                    
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="center">
+                        
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="התחלה"
+                            android:textSize="14sp" />
+                        
+                        <NumberPicker
+                            android:id="@+id/start_hour_picker"
+                            android:layout_width="wrap_content"
+                            android:layout_height="120dp" />
+                    </LinearLayout>
+                    
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="-"
+                        android:textSize="24sp"
+                        android:layout_marginHorizontal="16dp" />
+                    
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="center">
+                        
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="סיום"
+                            android:textSize="14sp" />
+                        
+                        <NumberPicker
+                            android:id="@+id/end_hour_picker"
+                            android:layout_width="wrap_content"
+                            android:layout_height="120dp" />
+                    </LinearLayout>
+                </LinearLayout>
+                
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginVertical="12dp" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="תדירות עדכון"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+                
+                <TextView
+                    android:id="@+id/interval_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="20 שניות"
+                    android:textSize="14sp"
+                    android:textColor="#3498DB"
+                    android:gravity="center"
+                    android:layout_marginBottom="4dp" />
+                
+                <SeekBar
+                    android:id="@+id/interval_seekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="120"
+                    android:progress="20" />
+                
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginVertical="12dp" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="ימים פעילים"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+                
+                <LinearLayout
+                    android:id="@+id/days_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="48dp"
-        android:gravity="center"
-        android:text="עדכון אוטומטי:\nא׳-ה׳ 07:00-12:00\nכל 20 שניות"
-        android:textColor="#666666"
-        android:textSize="14sp" />
+        <!-- Color Theme Section -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:elevation="4dp">
+            
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🎨 פלטת צבעים"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:textColor="#2C3E50"
+                    android:layout_marginBottom="12dp" />
+                
+                <Spinner
+                    android:id="@+id/color_theme_spinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="12dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
-</LinearLayout>
+        <!-- Floating Widget Section -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:elevation="4dp">
+            
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="💬 Widget צף"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:textColor="#2C3E50"
+                    android:layout_marginBottom="12dp" />
+                
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="הפעל Widget צף\n(מעל כל אפליקציה)"
+                        android:textSize="14sp" />
+                    
+                    <Switch
+                        android:id="@+id/floating_widget_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+                
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginVertical="12dp" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="גודל Widget צף"
+                    android:textSize="16sp"
+                    android:layout_marginBottom="8dp" />
+                
+                <Spinner
+                    android:id="@+id/floating_size_spinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="12dp" />
+                
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginVertical="12dp" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="שקיפות"
+                    android:textSize="16sp"
+                    android:layout_marginBottom="8dp" />
+                
+                <SeekBar
+                    android:id="@+id/floating_opacity_seekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:progress="90" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Price Alerts Section -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:elevation="4dp">
+            
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🔔 התראות מחיר"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:textColor="#2C3E50"
+                    android:layout_marginBottom="12dp" />
+                
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="התראה כשהמחיר עולה"
+                        android:textSize="16sp" />
+                    
+                    <Switch
+                        android:id="@+id/price_alert_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+                
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginVertical="12dp" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="סף ירוק → צהוב 🟢→🟡"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="4dp" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="מחיר ≤ סף זה = ירוק (מחיר טוב)\nמחיר > סף זה = צהוב"
+                    android:textSize="12sp"
+                    android:textColor="#7F8C8D"
+                    android:layout_marginBottom="8dp" />
+                
+                <TextView
+                    android:id="@+id/threshold1_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="₪10"
+                    android:textSize="28sp"
+                    android:textColor="#27AE60"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:layout_marginBottom="4dp" />
+                
+                <SeekBar
+                    android:id="@+id/threshold1_seekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="50"
+                    android:progress="10" />
+                
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginVertical="12dp" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="סף צהוב → אדום 🟡→🔴"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="4dp" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="מחיר ≤ סף זה = צהוב (מחיר סביר)\nמחיר > סף זה = אדום (מחיר יקר)"
+                    android:textSize="12sp"
+                    android:textColor="#7F8C8D"
+                    android:layout_marginBottom="8dp" />
+                
+                <TextView
+                    android:id="@+id/threshold2_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="₪25"
+                    android:textSize="28sp"
+                    android:textColor="#E74C3C"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:layout_marginBottom="4dp" />
+                
+                <SeekBar
+                    android:id="@+id/threshold2_seekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="50"
+                    android:progress="25" />
+                
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+                    
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="₪0"
+                        android:textSize="12sp"
+                        android:textColor="#95A5A6"
+                        android:gravity="start" />
+                    
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="₪50"
+                        android:textSize="12sp"
+                        android:textColor="#95A5A6"
+                        android:gravity="end" />
+                </LinearLayout>
+                
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginVertical="12dp" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="💡 דוגמה"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="4dp" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="סף1=₪10, סף2=₪25:\n• ₪8 = 🟢 ירוק\n• ₪15 = 🟡 צהוב\n• ₪30 = 🔴 אדום\n\nתקבל התראה בכל חציית סף!"
+                    android:textSize="12sp"
+                    android:textColor="#7F8C8D"
+                    android:lineSpacingExtra="2dp"
+                    android:layout_marginBottom="8dp" />
+                
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginVertical="12dp" />
+                
+                <Button
+                    android:id="@+id/reset_alerts_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="איפוס התראות"
+                    android:backgroundTint="#95A5A6"
+                    style="?attr/materialButtonOutlinedStyle" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="לחץ כדי לאפס את מצב ההתראות ולהתחיל מחדש"
+                    android:textSize="10sp"
+                    android:textColor="#95A5A6"
+                    android:gravity="center"
+                    android:layout_marginTop="4dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+    </LinearLayout>
+</ScrollView>

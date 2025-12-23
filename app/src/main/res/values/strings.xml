@@ -4,6 +4,7 @@
     <string name="widget_description">מציג את המחיר הנוכחי בנתיב המהיר</string>
     <string name="road_icon">Road Icon</string>
     <string name="loading">טוען…</string>
+    <string name="updating">מעדכן…</string>
     <string name="error">שגיאה</string>
     <string name="no_internet">אין חיבור לאינטרנט</string>
     <string name="tap_to_refresh">לחץ לרענון</string>
