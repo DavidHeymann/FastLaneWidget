@@ -297,9 +297,9 @@ class FloatingWidgetService : Service() {
                     val threshold2 = WidgetPreferences.getMediumToHighThreshold(this)
                     
                     // Get current theme
+                    val themeName = WidgetPreferences.getColorTheme(this)
                     val theme = try {
-                        val themeName = WidgetPreferences.getColorTheme(this)
-                        ColorTheme.valueOf(themeName)
+                        ColorTheme.values().find { it.id == themeName } ?: ColorTheme.PASTEL
                     } catch (e: Exception) {
                         ColorTheme.PASTEL
                     }

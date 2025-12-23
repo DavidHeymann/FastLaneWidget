@@ -187,9 +187,9 @@ class FastLaneWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.price_text, price.toString())
             
             // Get current theme
+            val themeName = WidgetPreferences.getColorTheme(context)
             val theme = try {
-                val themeName = WidgetPreferences.getColorTheme(context)
-                ColorTheme.valueOf(themeName)
+                ColorTheme.values().find { it.id == themeName } ?: ColorTheme.PASTEL
             } catch (e: Exception) {
                 ColorTheme.PASTEL
             }
