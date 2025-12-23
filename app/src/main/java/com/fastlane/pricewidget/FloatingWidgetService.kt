@@ -12,12 +12,9 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.view.animation.AnimationUtils
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
-import java.text.SimpleDateFormat
-import java.util.*
 
 class FloatingWidgetService : Service() {
 
@@ -37,11 +34,16 @@ class FloatingWidgetService : Service() {
     private var isDrawerMode = false
     private var isDrawerExpanded = false
     private var screenWidth = 0
+    private lateinit var params: WindowManager.LayoutParams
     
     // Long press detection
     private val longPressHandler = Handler(Looper.getMainLooper())
     private var isLongPress = false
     private val LONG_PRESS_TIMEOUT = 1000L
+    
+    // Auto-collapse timer
+    private val autoCollapseHandler = Handler(Looper.getMainLooper())
+    private val AUTO_COLLAPSE_DELAY = 3000L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -73,7 +75,7 @@ class FloatingWidgetService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
         
-        val params = WindowManager.LayoutParams(
+        params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             layoutFlag,
@@ -85,11 +87,20 @@ class FloatingWidgetService : Service() {
         isDrawerMode = WidgetPreferences.isDrawerMode(this)
         
         if (isDrawerMode) {
-            // Start as collapsed drawer on the right edge
+            // Start as collapsed drawer on the right edge (hidden), centered vertically
             params.gravity = Gravity.CENTER_VERTICAL or Gravity.END
-            params.x = -(floatingView?.width ?: 100) + 20 // Show only 20px
+            params.y = 0  // CENTER_VERTICAL will handle this
+            
+            // Wait for view to be measured
+            floatingView?.post {
+                val viewWidth = floatingView?.width ?: 0
+                // Hide completely, show only 15px tab
+                params.x = -(viewWidth - 15)
+                windowManager?.updateViewLayout(floatingView, params)
+            }
+            params.x = -200 // Initial guess
         } else {
-            // Regular floating mode
+            // Regular floating mode - start at top-left
             params.gravity = Gravity.TOP or Gravity.START
             params.x = 100
             params.y = 100
@@ -102,13 +113,13 @@ class FloatingWidgetService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         windowManager?.addView(floatingView, params)
         
-        setupTouchListener(params)
+        setupTouchListener()
         
         // Update price
         refreshPrice()
     }
     
-    private fun setupTouchListener(params: WindowManager.LayoutParams) {
+    private fun setupTouchListener() {
         floatingView?.setOnTouchListener(object : View.OnTouchListener {
             override fun onTouch(v: View, event: MotionEvent): Boolean {
                 when (event.action) {
@@ -120,6 +131,9 @@ class FloatingWidgetService : Service() {
                         isDragging = false
                         isLongPress = false
                         
+                        // Cancel auto-collapse
+                        autoCollapseHandler.removeCallbacksAndMessages(null)
+                        
                         // Start long press detection
                         longPressHandler.postDelayed({
                             isLongPress = true
@@ -129,17 +143,29 @@ class FloatingWidgetService : Service() {
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        val deltaX = Math.abs(event.rawX - initialTouchX)
-                        val deltaY = Math.abs(event.rawY - initialTouchY)
+                        val deltaX = event.rawX - initialTouchX
+                        val deltaY = event.rawY - initialTouchY
                         
-                        if (deltaX > 10 || deltaY > 10) {
+                        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
                             isDragging = true
                             longPressHandler.removeCallbacksAndMessages(null)
                             
-                            if (!isDrawerMode) {
-                                // Regular dragging
-                                params.x = initialX + (event.rawX - initialTouchX).toInt()
-                                params.y = initialY + (event.rawY - initialTouchY).toInt()
+                            if (isDrawerMode) {
+                                // In drawer mode - allow free dragging
+                                if (!isDrawerExpanded) {
+                                    // Expand first if collapsed
+                                    expandDrawer()
+                                }
+                                
+                                // Free drag
+                                params.gravity = Gravity.TOP or Gravity.START
+                                params.x = (event.rawX - floatingView!!.width / 2).toInt()
+                                params.y = (event.rawY - floatingView!!.height / 2).toInt()
+                                windowManager?.updateViewLayout(floatingView, params)
+                            } else {
+                                // Regular mode - free dragging
+                                params.x = initialX + deltaX.toInt()
+                                params.y = initialY + deltaY.toInt()
                                 windowManager?.updateViewLayout(floatingView, params)
                             }
                         }
@@ -153,15 +179,20 @@ class FloatingWidgetService : Service() {
                         }
                         
                         if (!isDragging) {
-                            // Click - toggle drawer or refresh
+                            // Click
                             if (isDrawerMode) {
-                                toggleDrawer(params)
+                                toggleDrawer()
                             } else {
+                                // Refresh price
                                 refreshPrice()
                             }
-                        } else if (isDrawerMode) {
-                            // Snap back to edge after drag
-                            snapToEdge(params)
+                        } else {
+                            // After dragging
+                            if (isDrawerMode) {
+                                // Smart snap to nearest edge
+                                snapToNearestEdge(event.rawX, event.rawY)
+                            }
+                            // In regular mode, stay where dropped
                         }
                         
                         isDragging = false
@@ -171,6 +202,33 @@ class FloatingWidgetService : Service() {
                 return false
             }
         })
+    }
+    
+    private fun snapToNearestEdge(x: Float, y: Float) {
+        // Determine which edge is closer
+        val isLeftCloser = x < screenWidth / 2
+        
+        // Save the Y position (height)
+        val centerY = y.toInt()
+        
+        // Snap to the nearest edge
+        if (isLeftCloser) {
+            // Snap to left edge
+            params.gravity = Gravity.CENTER_VERTICAL or Gravity.START
+        } else {
+            // Snap to right edge
+            params.gravity = Gravity.CENTER_VERTICAL or Gravity.END
+        }
+        
+        // Set Y position to maintain height
+        params.y = centerY - (floatingView?.height ?: 0) / 2
+        
+        // Collapse to show only tab
+        val viewWidth = floatingView?.width ?: 0
+        params.x = -(viewWidth - 15)
+        
+        windowManager?.updateViewLayout(floatingView, params)
+        isDrawerExpanded = false
     }
     
     private fun onLongPress() {
@@ -186,34 +244,36 @@ class FloatingWidgetService : Service() {
         }, 1000)
     }
     
-    private fun toggleDrawer(params: WindowManager.LayoutParams) {
-        isDrawerExpanded = !isDrawerExpanded
-        
+    private fun toggleDrawer() {
         if (isDrawerExpanded) {
-            // Expand - show full widget
-            params.x = 0
+            collapseDrawer()
         } else {
-            // Collapse - show only edge
-            params.x = -(floatingView?.width ?: 100) + 20
+            expandDrawer()
+            // Refresh price when opening
+            refreshPrice()
         }
-        
-        windowManager?.updateViewLayout(floatingView, params)
     }
     
-    private fun snapToEdge(params: WindowManager.LayoutParams) {
-        // Snap to nearest edge (left or right)
-        val screenCenter = screenWidth / 2
+    private fun expandDrawer() {
+        isDrawerExpanded = true
         
-        if (params.x < screenCenter) {
-            // Snap to left
-            params.x = -(floatingView?.width ?: 100) + 20
-            params.gravity = Gravity.CENTER_VERTICAL or Gravity.START
-        } else {
-            // Snap to right
-            params.x = -(floatingView?.width ?: 100) + 20
-            params.gravity = Gravity.CENTER_VERTICAL or Gravity.END
-        }
+        // Animate to fully visible
+        params.x = 0
+        windowManager?.updateViewLayout(floatingView, params)
         
+        // Schedule auto-collapse
+        autoCollapseHandler.postDelayed({
+            collapseDrawer()
+        }, AUTO_COLLAPSE_DELAY)
+    }
+    
+    private fun collapseDrawer() {
+        isDrawerExpanded = false
+        autoCollapseHandler.removeCallbacksAndMessages(null)
+        
+        // Animate to hidden (show only 15px tab)
+        val viewWidth = floatingView?.width ?: 0
+        params.x = -(viewWidth - 15)
         windowManager?.updateViewLayout(floatingView, params)
     }
     
@@ -232,14 +292,23 @@ class FloatingWidgetService : Service() {
                     
                     priceText?.text = price.toString()
                     
-                    // Update color based on threshold
+                    // Update color based on threshold and theme
                     val threshold1 = WidgetPreferences.getLowToMediumThreshold(this)
                     val threshold2 = WidgetPreferences.getMediumToHighThreshold(this)
                     
+                    // Get current theme
+                    val theme = try {
+                        val themeName = WidgetPreferences.getColorTheme(this)
+                        ColorTheme.valueOf(themeName)
+                    } catch (e: Exception) {
+                        ColorTheme.PASTEL
+                    }
+                    val colors = theme.getColors()
+                    
                     val color = when {
-                        price <= threshold1 -> android.graphics.Color.parseColor("#27AE60")
-                        price <= threshold2 -> android.graphics.Color.parseColor("#F39C12")
-                        else -> android.graphics.Color.parseColor("#E74C3C")
+                        price <= threshold1 -> android.graphics.Color.parseColor(colors.greenStart)
+                        price <= threshold2 -> android.graphics.Color.parseColor(colors.yellowStart)
+                        else -> android.graphics.Color.parseColor(colors.redStart)
                     }
                     
                     priceText?.setTextColor(color)
@@ -247,11 +316,15 @@ class FloatingWidgetService : Service() {
                     
                     // Check for notifications
                     PriceNotificationManager.checkAndNotify(this, price)
+                    
+                    // Show feedback toast
+                    Toast.makeText(this, "עודכן: ₪$price", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 // Hide progress on error
                 Handler(Looper.getMainLooper()).post {
                     progressBar?.visibility = View.GONE
+                    Toast.makeText(this, "שגיאה בעדכון מחיר", Toast.LENGTH_SHORT).show()
                 }
             }
         }.start()
@@ -263,5 +336,6 @@ class FloatingWidgetService : Service() {
             windowManager?.removeView(floatingView)
         }
         longPressHandler.removeCallbacksAndMessages(null)
+        autoCollapseHandler.removeCallbacksAndMessages(null)
     }
 }

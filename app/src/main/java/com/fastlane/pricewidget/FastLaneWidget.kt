@@ -186,16 +186,28 @@ class FastLaneWidget : AppWidgetProvider() {
             // Update price
             views.setTextViewText(R.id.price_text, price.toString())
             
-            // Update background with gradient drawable based on price and thresholds
+            // Get current theme
+            val theme = try {
+                val themeName = WidgetPreferences.getColorTheme(context)
+                ColorTheme.valueOf(themeName)
+            } catch (e: Exception) {
+                ColorTheme.PASTEL
+            }
+            val colors = theme.getColors()
+            
+            // Update background color based on price and thresholds
             val threshold1 = WidgetPreferences.getLowToMediumThreshold(context)
             val threshold2 = WidgetPreferences.getMediumToHighThreshold(context)
             
-            val backgroundRes = when {
-                price <= threshold1 -> R.drawable.widget_background_green
-                price <= threshold2 -> R.drawable.widget_background_yellow
-                else -> R.drawable.widget_background_red
+            // Use start color as main background
+            val backgroundColor = when {
+                price <= threshold1 -> android.graphics.Color.parseColor(colors.greenStart)
+                price <= threshold2 -> android.graphics.Color.parseColor(colors.yellowStart)
+                else -> android.graphics.Color.parseColor(colors.redStart)
             }
-            views.setInt(R.id.widget_container, "setBackgroundResource", backgroundRes)
+            
+            // Set solid background color with rounded corners
+            views.setInt(R.id.widget_container, "setBackgroundColor", backgroundColor)
             
             // Update time (only for large layout)
             if (layoutId == R.layout.widget_layout) {

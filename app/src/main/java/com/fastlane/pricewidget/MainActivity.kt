@@ -51,6 +51,12 @@ class MainActivity : AppCompatActivity() {
         setupListeners()
         updateCurrentPrice()
     }
+    
+    override fun onResume() {
+        super.onResume()
+        // Sync floating widget switch with actual state
+        floatingWidgetSwitch.isChecked = WidgetPreferences.isFloatingWidgetEnabled(this)
+    }
 
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
