@@ -214,12 +214,18 @@
                     android:textStyle="bold"
                     android:layout_marginBottom="8dp" />
                 
-                <LinearLayout
-                    android:id="@+id/days_container"
+                <HorizontalScrollView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center" />
+                    android:scrollbars="none">
+                    
+                    <LinearLayout
+                        android:id="@+id/days_container"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center" />
+                </HorizontalScrollView>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -332,6 +338,31 @@
                     android:layout_height="wrap_content"
                     android:max="100"
                     android:progress="90" />
+                
+                <!-- Drawer Mode -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="מצב מגירה (דבק לצד המסך)"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="8dp" />
+                
+                <Switch
+                    android:id="@+id/drawer_mode_switch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="הפעל מצב מגירה"
+                    android:checked="false" />
+                
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="במצב מגירה: Widget נדבק לצד המסך, לחץ להרחבה"
+                    android:textSize="12sp"
+                    android:textColor="#7F8C8D"
+                    android:layout_marginTop="4dp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -528,6 +559,18 @@
                     android:layout_marginTop="4dp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
+
+        <!-- Save Button (Sticky at bottom) -->
+        <Button
+            android:id="@+id/save_button"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:text="💾 שמור שינויים"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:backgroundTint="#27AE60"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp" />
 
     </LinearLayout>
 </ScrollView>

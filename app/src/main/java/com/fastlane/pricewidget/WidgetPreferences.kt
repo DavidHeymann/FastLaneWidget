@@ -112,6 +112,15 @@ object WidgetPreferences {
         getPrefs(context).edit().putFloat(KEY_FLOATING_OPACITY, opacity).apply()
     }
     
+    // Drawer mode
+    fun isDrawerMode(context: Context): Boolean {
+        return getPrefs(context).getBoolean("drawer_mode", false)
+    }
+    
+    fun setDrawerMode(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean("drawer_mode", enabled).apply()
+    }
+    
     // Price alerts
     fun isPriceAlertEnabled(context: Context): Boolean {
         return getPrefs(context).getBoolean(KEY_PRICE_ALERT_ENABLED, false)

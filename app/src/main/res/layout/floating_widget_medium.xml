@@ -1,28 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:background="@drawable/floating_widget_bg"
-    android:padding="12dp"
-    android:gravity="center">
+    android:layout_height="wrap_content">
 
-    <TextView
-        android:id="@+id/floating_price"
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="--"
-        android:textColor="#2C3E50"
-        android:textSize="28sp"
-        android:textStyle="bold" />
+        android:orientation="horizontal"
+        android:background="@drawable/floating_widget_bg"
+        android:padding="12dp"
+        android:gravity="center">
 
-    <TextView
-        android:id="@+id/floating_shekel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="3dp"
-        android:text="₪"
-        android:textColor="#2C3E50"
-        android:textSize="22sp" />
+        <!-- Logo -->
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/logo_small"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="Logo" />
 
-</LinearLayout>
+        <!-- Price -->
+        <TextView
+            android:id="@+id/floating_price"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--"
+            android:textColor="#2C3E50"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <!-- Shekel Symbol -->
+        <TextView
+            android:id="@+id/floating_shekel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="3dp"
+            android:text="₪"
+            android:textColor="#2C3E50"
+            android:textSize="22sp" />
+    </LinearLayout>
+
+    <!-- Loading Indicator -->
+    <ProgressBar
+        android:id="@+id/floating_progress"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="4dp"
+        android:visibility="gone" />
+
+</FrameLayout>

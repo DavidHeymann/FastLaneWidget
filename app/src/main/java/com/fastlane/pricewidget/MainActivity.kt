@@ -23,12 +23,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var floatingWidgetSwitch: Switch
     private lateinit var floatingSizeSpinner: Spinner
     private lateinit var floatingOpacitySeekBar: SeekBar
+    private lateinit var drawerModeSwitch: Switch
     private lateinit var priceAlertSwitch: Switch
     private lateinit var threshold1SeekBar: SeekBar
     private lateinit var threshold1Text: TextView
     private lateinit var threshold2SeekBar: SeekBar
     private lateinit var threshold2Text: TextView
     private lateinit var resetAlertsButton: Button
+    private lateinit var saveButton: Button
     private lateinit var currentPriceText: TextView
     private lateinit var refreshButton: Button
 
@@ -41,10 +43,43 @@ class MainActivity : AppCompatActivity() {
         // Initialize notification channel
         PriceNotificationManager.createNotificationChannel(this)
 
+        // Request notification permission (Android 13+)
+        requestNotificationPermission()
+
         initViews()
         loadSettings()
         setupListeners()
         updateCurrentPrice()
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) 
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(
+                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                    REQUEST_NOTIFICATION_PERMISSION
+                )
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            REQUEST_NOTIFICATION_PERMISSION -> {
+                if (grantResults.isNotEmpty() && 
+                    grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(this, "הרשאת התראות ניתנה ✅", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "ללא הרשאת התראות, לא תקבל עדכונים", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     private fun initViews() {
@@ -58,12 +93,14 @@ class MainActivity : AppCompatActivity() {
         floatingWidgetSwitch = findViewById(R.id.floating_widget_switch)
         floatingSizeSpinner = findViewById(R.id.floating_size_spinner)
         floatingOpacitySeekBar = findViewById(R.id.floating_opacity_seekbar)
+        drawerModeSwitch = findViewById(R.id.drawer_mode_switch)
         priceAlertSwitch = findViewById(R.id.price_alert_switch)
         threshold1SeekBar = findViewById(R.id.threshold1_seekbar)
         threshold1Text = findViewById(R.id.threshold1_text)
         threshold2SeekBar = findViewById(R.id.threshold2_seekbar)
         threshold2Text = findViewById(R.id.threshold2_text)
         resetAlertsButton = findViewById(R.id.reset_alerts_button)
+        saveButton = findViewById(R.id.save_button)
         currentPriceText = findViewById(R.id.current_price_text)
         refreshButton = findViewById(R.id.refresh_button)
 
@@ -140,6 +177,9 @@ class MainActivity : AppCompatActivity() {
             }
         )
         floatingOpacitySeekBar.progress = (WidgetPreferences.getFloatingOpacity(this) * 100).toInt()
+        
+        // Drawer mode
+        drawerModeSwitch.isChecked = WidgetPreferences.isDrawerMode(this)
 
         // Price alerts
         priceAlertSwitch.isChecked = WidgetPreferences.isPriceAlertEnabled(this)
@@ -247,6 +287,14 @@ class MainActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
+        
+        // Drawer mode
+        drawerModeSwitch.setOnCheckedChangeListener { _, isChecked ->
+            WidgetPreferences.setDrawerMode(this, isChecked)
+            if (WidgetPreferences.isFloatingWidgetEnabled(this)) {
+                restartFloatingWidget()
+            }
+        }
 
         // Price alerts
         priceAlertSwitch.setOnCheckedChangeListener { _, isChecked ->
@@ -313,6 +361,15 @@ class MainActivity : AppCompatActivity() {
                 }
             }.start()
         }
+        
+        // Save button - apply all changes
+        saveButton.setOnClickListener {
+            updateWidgets()
+            if (WidgetPreferences.isFloatingWidgetEnabled(this)) {
+                restartFloatingWidget()
+            }
+            Toast.makeText(this, "✅ השינויים נשמרו!", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun updateCurrentPrice() {
@@ -350,18 +407,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestOverlayPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            AlertDialog.Builder(this)
-                .setTitle("הרשאה נדרשת")
-                .setMessage("כדי להציג widget צף מעל אפליקציות אחרות, יש צורך באישור הרשאה מיוחדת.")
-                .setPositiveButton("הגדרות") { _, _ ->
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:$packageName")
-                    )
-                    startActivityForResult(intent, REQUEST_OVERLAY_PERMISSION)
-                }
-                .setNegativeButton("ביטול", null)
-                .show()
+            // Show explanation toast
+            Toast.makeText(
+                this,
+                "פותח הגדרות - אפשר הרשאה 'הצגה מעל אפליקציות אחרות'",
+                Toast.LENGTH_LONG
+            ).show()
+            
+            // Open settings directly
+            try {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+                startActivityForResult(intent, REQUEST_OVERLAY_PERMISSION)
+            } catch (e: Exception) {
+                Toast.makeText(this, "לא ניתן לפתוח הגדרות", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -397,5 +459,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val REQUEST_OVERLAY_PERMISSION = 1001
+        private const val REQUEST_NOTIFICATION_PERMISSION = 1002
     }
 }
