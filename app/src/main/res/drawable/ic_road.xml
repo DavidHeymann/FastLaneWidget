@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    
+    <!-- Rounded road background -->
+    <path
+        android:fillColor="#2C3E50"
+        android:pathData="M19,4H5C3.34,4 2,5.34 2,7v10c0,1.66 1.34,3 3,3h14c1.66,0 3,-1.34 3,-3V7C22,5.34 20.66,4 19,4zM20,17c0,0.55 -0.45,1 -1,1H5c-0.55,0 -1,-0.45 -1,-1V7c0,-0.55 0.45,-1 1,-1h14c0.55,0 1,0.45 1,1V17z" />
+    
+    <!-- Dashed center lines with rounded caps -->
+    <path
+        android:fillColor="#2C3E50"
+        android:pathData="M11,8h2c0.55,0 1,0.45 1,1v1c0,0.55 -0.45,1 -1,1h-2c-0.55,0 -1,-0.45 -1,-1V9C10,8.45 10.45,8 11,8z" />
+    <path
+        android:fillColor="#2C3E50"
+        android:pathData="M11,13h2c0.55,0 1,0.45 1,1v1c0,0.55 -0.45,1 -1,1h-2c-0.55,0 -1,-0.45 -1,-1v-1C10,13.45 10.45,13 11,13z" />
+</vector>

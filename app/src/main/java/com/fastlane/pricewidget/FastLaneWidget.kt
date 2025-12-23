@@ -1,0 +1,196 @@
+package com.fastlane.pricewidget
+
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
+import android.widget.RemoteViews
+import java.text.SimpleDateFormat
+import java.util.*
+
+class FastLaneWidget : AppWidgetProvider() {
+
+    companion object {
+        const val ACTION_REFRESH = "com.fastlane.pricewidget.REFRESH_WIDGET"
+        private val handler = Handler(Looper.getMainLooper())
+        private var updateRunnable: Runnable? = null
+        
+        fun updateAllWidgets(context: Context) {
+            val intent = Intent(context, FastLaneWidget::class.java).apply {
+                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+            }
+            val ids = AppWidgetManager.getInstance(context)
+                .getAppWidgetIds(ComponentName(context, FastLaneWidget::class.java))
+            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+            context.sendBroadcast(intent)
+        }
+    }
+
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray
+    ) {
+        for (appWidgetId in appWidgetIds) {
+            updateAppWidget(context, appWidgetManager, appWidgetId)
+        }
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        
+        when (intent.action) {
+            ACTION_REFRESH, AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
+                fetchPriceAndUpdate(context)
+            }
+        }
+    }
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        scheduleUpdates(context)
+        fetchPriceAndUpdate(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        stopScheduledUpdates()
+    }
+
+    private fun updateAppWidget(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int
+    ) {
+        val views = RemoteViews(context.packageName, R.layout.widget_layout)
+        
+        // Set click listener for manual refresh
+        val intent = Intent(context, FastLaneWidget::class.java).apply {
+            action = ACTION_REFRESH
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
+        
+        appWidgetManager.updateAppWidget(appWidgetId, views)
+    }
+
+    private fun fetchPriceAndUpdate(context: Context) {
+        Thread {
+            try {
+                val price = PriceApi.getCurrentPrice()
+                updateWidgetWithPrice(context, price)
+                
+                // Schedule next update if in active hours
+                if (isActiveHours()) {
+                    scheduleNextUpdate(context)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                updateWidgetWithError(context)
+            }
+        }.start()
+    }
+
+    private fun updateWidgetWithPrice(context: Context, price: Int) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val ids = appWidgetManager.getAppWidgetIds(
+            ComponentName(context, FastLaneWidget::class.java)
+        )
+
+        for (appWidgetId in ids) {
+            val views = RemoteViews(context.packageName, R.layout.widget_layout)
+            
+            // Update price
+            views.setTextViewText(R.id.price_text, price.toString())
+            
+            // Update background with gradient drawable based on price
+            val backgroundRes = when {
+                price <= 10 -> R.drawable.widget_background_green
+                price <= 25 -> R.drawable.widget_background_yellow
+                else -> R.drawable.widget_background_red
+            }
+            views.setInt(R.id.widget_container, "setBackgroundResource", backgroundRes)
+            
+            // Update time
+            val timeFormat = SimpleDateFormat("HH:mm", Locale("he", "IL"))
+            val currentTime = timeFormat.format(Date())
+            views.setTextViewText(R.id.update_time, currentTime)
+            
+            // Set click listener
+            val intent = Intent(context, FastLaneWidget::class.java).apply {
+                action = ACTION_REFRESH
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
+            
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
+    }
+
+    private fun updateWidgetWithError(context: Context) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val ids = appWidgetManager.getAppWidgetIds(
+            ComponentName(context, FastLaneWidget::class.java)
+        )
+
+        for (appWidgetId in ids) {
+            val views = RemoteViews(context.packageName, R.layout.widget_layout)
+            views.setTextViewText(R.id.price_text, "!")
+            views.setTextViewText(R.id.update_time, "שגיאה")
+            
+            val intent = Intent(context, FastLaneWidget::class.java).apply {
+                action = ACTION_REFRESH
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
+            
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
+    }
+
+    private fun isActiveHours(): Boolean {
+        val calendar = Calendar.getInstance(TimeZone.getTimeZone("Asia/Jerusalem"))
+        val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+        val hourOfDay = calendar.get(Calendar.HOUR_OF_DAY)
+        
+        // Sunday (1) to Thursday (5) in Calendar, 07:00 to 12:00
+        val isSundayToThursday = dayOfWeek >= Calendar.SUNDAY && dayOfWeek <= Calendar.THURSDAY
+        val isActiveTime = hourOfDay in 7..11
+        
+        return isSundayToThursday && isActiveTime
+    }
+
+    private fun scheduleUpdates(context: Context) {
+        scheduleNextUpdate(context)
+    }
+
+    private fun scheduleNextUpdate(context: Context) {
+        stopScheduledUpdates()
+        
+        if (isActiveHours()) {
+            updateRunnable = Runnable {
+                fetchPriceAndUpdate(context)
+            }
+            handler.postDelayed(updateRunnable!!, 20000) // 20 seconds
+        }
+    }
+
+    private fun stopScheduledUpdates() {
+        updateRunnable?.let { handler.removeCallbacks(it) }
+        updateRunnable = null
+    }
+}

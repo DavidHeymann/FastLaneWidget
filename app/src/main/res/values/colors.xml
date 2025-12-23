@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Soft pastel gradients -->
+    <color name="pastel_green_start">#A8E6CF</color>
+    <color name="pastel_green_end">#C1F0D5</color>
+    
+    <color name="pastel_yellow_start">#FFE5B4</color>
+    <color name="pastel_yellow_end">#FFF4D6</color>
+    
+    <color name="pastel_red_start">#FFB3BA</color>
+    <color name="pastel_red_end">#FFCCD1</color>
+    
+    <!-- Legacy colors (for reference) -->
+    <color name="price_green">#A8E6CF</color>
+    <color name="price_yellow">#FFE5B4</color>
+    <color name="price_red">#FFB3BA</color>
+    
+    <color name="widget_text">#2C3E50</color>
+    <color name="widget_text_secondary">#7F8C8D</color>
+</resources>
