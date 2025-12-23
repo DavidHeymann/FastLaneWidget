@@ -186,10 +186,15 @@ class FastLaneWidget : AppWidgetProvider() {
             // Update price
             views.setTextViewText(R.id.price_text, price.toString())
             
-            // Get current theme
+            // Get current theme colors
             val themeName = WidgetPreferences.getColorTheme(context)
-            val theme = ColorTheme.values().find { it.id == themeName } ?: ColorTheme.PASTEL
-            val colors = theme.getColors()
+            val colors = when (themeName) {
+                "vibrant" -> ThemeColors("#4CAF50", "#66BB6A", "#FFC107", "#FFD54F", "#F44336", "#EF5350")
+                "dark" -> ThemeColors("#2E7D32", "#388E3C", "#F57C00", "#FB8C00", "#C62828", "#D32F2F")
+                "minimal" -> ThemeColors("#E8F5E9", "#F1F8F4", "#FFF8E1", "#FFFDE7", "#FFEBEE", "#FFCDD2")
+                "neon" -> ThemeColors("#00FF88", "#00FFAA", "#FFFF00", "#FFFF66", "#FF00FF", "#FF66FF")
+                else -> ThemeColors("#A8E6CF", "#C1F0D5", "#FFE5B4", "#FFF4D6", "#FFB3BA", "#FFCCD1") // pastel default
+            }
             
             // Update background color based on price and thresholds
             val threshold1 = WidgetPreferences.getLowToMediumThreshold(context)
