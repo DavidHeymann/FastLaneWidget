@@ -9,6 +9,13 @@
 .cxx
 local.properties
 
+# Keystore files
+*.jks
+*.keystore
+keystore.properties
+release-keystore.jks
+*.base64
+
 # Built application files
 *.apk
 *.aar
