@@ -3,193 +3,244 @@ package com.fastlane.pricewidget
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
-import android.os.IBinder
 import android.os.Looper
-import android.util.DisplayMetrics
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
-import android.view.WindowManager
-import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
-import jp.co.recruit_lifestyle.android.floatingview.FloatingViewListener
-import jp.co.recruit_lifestyle.android.floatingview.FloatingViewManager
+import com.torrydo.floatingbubbleview.ExpandableBubbleService
+import com.torrydo.floatingbubbleview.service.expandable.BubbleBuilder
+import com.torrydo.floatingbubbleview.service.expandable.ExpandedBubbleBuilder
 
-class FloatingWidgetService : Service(), FloatingViewListener {
+class FloatingWidgetService : ExpandableBubbleService() {
 
     companion object {
         const val NOTIFICATION_ID = 100
+        private const val CHANNEL_ID = "floating_widget_channel"
     }
 
-    private var floatingViewManager: FloatingViewManager? = null
-    private var floatingView: View? = null
-    
-    // UI elements
+    // UI elements for expanded view
     private var priceText: TextView? = null
     private var shekelText: TextView? = null
     private var progressBar: ProgressBar? = null
-    
-    // Drawer state tracking
-    private var isDrawerMode = false
-    private var isExpanded = false
-    private var screenWidth = 0
+    private var expandedView: View? = null
+
+    // State tracking
     private var lastClickTime = 0L
+    private var isDrawerMode = false
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    override fun onCreate() {
+        super.onCreate()
+        
+        // Check if drawer mode is enabled
+        isDrawerMode = WidgetPreferences.isDrawerMode(this)
+        
+        // Start notification foreground
+        startNotificationForeground()
+        
+        // Start in minimized state (small bubble)
+        minimize()
+    }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (floatingViewManager != null) {
-            return START_STICKY
+    override fun startNotificationForeground() {
+        // Create notification channel for Android O and above
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Fast Lane Widget",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Shows floating price widget on screen"
+                setShowBadge(false)
+            }
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager?.createNotificationChannel(channel)
         }
 
-        // Get screen metrics
-        val metrics = DisplayMetrics()
-        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        windowManager.defaultDisplay.getMetrics(metrics)
-        screenWidth = metrics.widthPixels
+        // Create notification
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Fast Lane Price")
+            .setContentText("Widget is active - tap to refresh")
+            .setSmallIcon(R.drawable.ic_launcher)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .build()
 
-        // Inflate the floating view
-        val inflater = LayoutInflater.from(this)
-        
-        // Use appropriate size based on preferences
+        startForeground(NOTIFICATION_ID, notification)
+    }
+
+    override fun configBubble(): BubbleBuilder? {
+        // Get widget size preference
         val size = WidgetPreferences.getFloatingSize(this)
         val layoutRes = when (size) {
             "small" -> R.layout.floating_widget_small
             "large" -> R.layout.floating_widget_large
             else -> R.layout.floating_widget_medium
         }
+
+        // Inflate bubble view (collapsed state)
+        val bubbleView = LayoutInflater.from(this).inflate(layoutRes, null, false)
         
-        floatingView = inflater.inflate(layoutRes, null, false)
+        // Setup click listener for bubble
+        bubbleView.setOnClickListener {
+            handleBubbleClick()
+        }
+
+        // Get screen density for dp to px conversion
+        val density = resources.displayMetrics.density
+        
+        // Load saved position
+        val prefs = getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
+        val savedX = prefs.getInt("last_x", (16 * density).toInt())
+        val savedY = prefs.getInt("last_y", (100 * density).toInt())
+
+        return BubbleBuilder(this)
+            // Set the bubble view
+            .bubbleView(bubbleView)
+            
+            // Enable dragging
+            .bubbleDraggable(true)
+            
+            // Start location
+            .startLocationPx(savedX, savedY)
+            
+            // Enable animate to edge (for drawer mode)
+            .enableAnimateToEdge(isDrawerMode)
+            
+            // Close bubble view (X button)
+            .closeBubbleView(null) // We'll handle closing via settings
+            
+            // Apply opacity from settings
+            .apply {
+                val opacity = WidgetPreferences.getFloatingOpacity(this@FloatingWidgetService)
+                bubbleView.alpha = opacity
+            }
+            
+            // Bubble listeners
+            .addFloatingBubbleListener(object : com.torrydo.floatingbubbleview.FloatingBubbleListener {
+                override fun onFingerDown(x: Float, y: Float) {
+                    // Touch started
+                }
+
+                override fun onFingerMove(x: Float, y: Float) {
+                    // Being dragged
+                }
+
+                override fun onFingerUp(x: Float, y: Float) {
+                    // Save position
+                    savePosition(x.toInt(), y.toInt())
+                }
+            })
+    }
+
+    override fun configExpandedBubble(): ExpandedBubbleBuilder? {
+        // Get widget size preference
+        val size = WidgetPreferences.getFloatingSize(this)
+        val layoutRes = when (size) {
+            "small" -> R.layout.floating_widget_small
+            "large" -> R.layout.floating_widget_large
+            else -> R.layout.floating_widget_medium
+        }
+
+        // Inflate expanded view
+        expandedView = LayoutInflater.from(this).inflate(layoutRes, null, false)
         
         // Get UI elements
-        priceText = floatingView?.findViewById(R.id.price_text)
-        shekelText = floatingView?.findViewById(R.id.shekel_text)
-        progressBar = floatingView?.findViewById(R.id.progress_bar)
-        
-        // Check if drawer mode is enabled
-        isDrawerMode = WidgetPreferences.isDrawerMode(this)
+        priceText = expandedView?.findViewById(R.id.price_text)
+        shekelText = expandedView?.findViewById(R.id.shekel_text)
+        progressBar = expandedView?.findViewById(R.id.progress_bar)
         
         // Setup click listener
-        floatingView?.setOnClickListener {
-            handleClick()
+        expandedView?.setOnClickListener {
+            handleExpandedClick()
         }
-
-        // Create FloatingViewManager
-        floatingViewManager = FloatingViewManager(this, this)
-        floatingViewManager?.apply {
-            if (isDrawerMode) {
-                // Drawer mode: snap to nearest edge
-                setMoveDirection(FloatingViewManager.MOVE_DIRECTION_NEAREST)
-            } else {
-                // Regular mode: don't snap to edges
-                setMoveDirection(FloatingViewManager.MOVE_DIRECTION_NONE)
-            }
-            
-            // Enable physics animations for smooth movement
-            setUsePhysicsBasedAnimation(true)
-            
-            // Always show (don't hide in fullscreen)
-            setDisplayMode(FloatingViewManager.DISPLAY_MODE_SHOW_ALWAYS)
-        }
-
-        // Setup options
-        val options = FloatingViewManager.Options().apply {
-            // Margin from screen edge (in pixels)
-            overMargin = (16 * metrics.density).toInt()
-            
-            // Check for saved position
-            val prefs = getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
-            val savedX = prefs.getInt("last_x", -1)
-            val savedY = prefs.getInt("last_y", -1)
-            
-            if (savedX != -1 && savedY != -1) {
-                // Use saved position
-                floatingViewX = savedX
-                floatingViewY = savedY
-            } else {
-                // Default position: top-right
-                floatingViewX = metrics.widthPixels - (100 * metrics.density).toInt()
-                floatingViewY = (100 * metrics.density).toInt()
-            }
-        }
-
-        // Add view to window
-        floatingViewManager?.addViewToWindow(floatingView, options)
 
         // Apply opacity
         val opacity = WidgetPreferences.getFloatingOpacity(this)
-        floatingView?.alpha = opacity
+        expandedView?.alpha = opacity
 
-        // Start foreground
-        startForeground(NOTIFICATION_ID, createNotification())
+        // Get screen density
+        val density = resources.displayMetrics.density
 
-        // Initial price update
-        refreshPrice()
-
-        return START_STICKY
-    }
-
-    override fun onFinishFloatingView() {
-        stopSelf()
-    }
-
-    override fun onTouchFinished(isFinishing: Boolean, x: Int, y: Int) {
-        // Save position when touch finished
-        val prefs = getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
-        prefs.edit().apply {
-            putInt("last_x", x)
-            putInt("last_y", y)
-            apply()
-        }
-        
-        // Track if drawer is expanded or collapsed
-        if (isDrawerMode) {
-            // Calculate if widget is near edge (collapsed) or in center (expanded)
-            val viewWidth = floatingView?.width ?: 0
-            val distanceFromLeftEdge = x
-            val distanceFromRightEdge = screenWidth - x - viewWidth
+        return ExpandedBubbleBuilder(this)
+            // Set expanded view
+            .expandedView(expandedView)
             
-            // If less than 50px from edge, consider it collapsed
-            isExpanded = distanceFromLeftEdge > 50 && distanceFromRightEdge > 50
-        }
+            // Start location (centered)
+            .startLocationPx(
+                (resources.displayMetrics.widthPixels / 2 - 100 * density).toInt(),
+                (100 * density).toInt()
+            )
+            
+            // Allow dragging when expanded
+            .draggable(true)
+            
+            // Enable animate to edge
+            .enableAnimateToEdge(isDrawerMode)
+            
+            // Dim background when expanded
+            .dimAmount(0.3f)
+            
+            // Fill width based on size
+            .fillMaxWidth(size == "large")
     }
-    
-    private fun handleClick() {
+
+    private fun handleBubbleClick() {
         // Prevent double clicks
         val currentTime = System.currentTimeMillis()
-        if (currentTime - lastClickTime < 500) {
+        if (currentTime - lastClickTime < 300) {
             return
         }
         lastClickTime = currentTime
-        
+
         if (isDrawerMode) {
-            // In drawer mode: only refresh if already expanded
-            if (isExpanded) {
-                refreshPrice()
-            }
-            // If collapsed, the library will expand it automatically via drag
+            // In drawer mode: expand to show full widget
+            expand()
+            // Refresh price when expanded
+            refreshPrice()
         } else {
-            // In regular mode: always refresh
+            // In regular mode: just refresh price
+            expand()
+            refreshPrice()
+        }
+    }
+
+    private fun handleExpandedClick() {
+        // Prevent double clicks
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastClickTime < 300) {
+            return
+        }
+        lastClickTime = currentTime
+
+        if (isDrawerMode) {
+            // In drawer mode: minimize back to bubble
+            minimize()
+        } else {
+            // In regular mode: refresh price
             refreshPrice()
         }
     }
 
     private fun refreshPrice() {
+        // Show loading
         progressBar?.visibility = View.VISIBLE
         priceText?.visibility = View.GONE
         shekelText?.visibility = View.GONE
 
+        // Fetch price in background
         Thread {
             try {
                 val price = PriceApi.getCurrentPrice()
+                
+                // Update UI on main thread
                 Handler(Looper.getMainLooper()).post {
                     progressBar?.visibility = View.GONE
                     priceText?.text = price.toString()
@@ -197,41 +248,33 @@ class FloatingWidgetService : Service(), FloatingViewListener {
                     shekelText?.visibility = View.VISIBLE
                 }
             } catch (e: Exception) {
+                // Show error
                 Handler(Looper.getMainLooper()).post {
                     progressBar?.visibility = View.GONE
                     priceText?.text = "--"
                     priceText?.visibility = View.VISIBLE
-                    Toast.makeText(this, "שגיאה בטעינת המחיר", Toast.LENGTH_SHORT).show()
+                    shekelText?.visibility = View.VISIBLE
+                    Toast.makeText(
+                        this@FloatingWidgetService,
+                        "שגיאה בטעינת המחיר",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }.start()
     }
 
-    private fun createNotification(): Notification {
-        val channelId = "floating_widget_channel"
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "Floating Widget",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Shows floating widget on screen"
-            }
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager?.createNotificationChannel(channel)
+    private fun savePosition(x: Int, y: Int) {
+        val prefs = getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putInt("last_x", x)
+            putInt("last_y", y)
+            apply()
         }
-
-        return NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Fast Lane Price")
-            .setContentText("Widget is active")
-            .setSmallIcon(R.drawable.ic_launcher)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        floatingViewManager?.removeAllViewToWindow()
+        // Cleanup is handled by parent class
     }
 }
