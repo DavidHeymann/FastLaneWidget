@@ -9,7 +9,7 @@
 .cxx
 local.properties
 
-# Keystore files
+# Keystore files - DO NOT COMMIT!
 *.jks
 *.keystore
 keystore.properties
