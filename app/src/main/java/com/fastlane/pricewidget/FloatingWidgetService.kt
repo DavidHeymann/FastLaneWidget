@@ -33,6 +33,7 @@ class FloatingWidgetService : Service() {
     // For drawer mode
     private var isDrawerMode = false
     private var isDrawerExpanded = false
+    private var isOnRightEdge = true  // Track which edge drawer is on (true=right, false=left)
     private var screenWidth = 0
     private lateinit var params: WindowManager.LayoutParams
     
@@ -90,7 +91,7 @@ class FloatingWidgetService : Service() {
             // Drawer mode: Start hidden on right edge
             params.gravity = Gravity.TOP or Gravity.END
             params.y = 100  // Starting height
-            // We'll set x after view is measured
+            params.x = 0  // Will be adjusted after measurement
             isDrawerExpanded = false
         } else {
             // Regular floating mode - start at top-left
@@ -110,8 +111,9 @@ class FloatingWidgetService : Service() {
         if (isDrawerMode) {
             floatingView?.post {
                 val viewWidth = floatingView?.width ?: 0
-                // Hide completely, showing only 15px peek
-                params.x = -(viewWidth - 15)
+                // With Gravity.END, positive x moves widget OFF screen to the right
+                // Show only 15px peek
+                params.x = viewWidth - 15
                 windowManager?.updateViewLayout(floatingView, params)
             }
         }
@@ -159,7 +161,10 @@ class FloatingWidgetService : Service() {
                             longPressHandler.removeCallbacksAndMessages(null)
                             
                             if (isDrawerMode) {
-                                // Allow vertical dragging only
+                                // Allow both horizontal and vertical dragging
+                                // Temporarily use START gravity for free movement
+                                params.gravity = Gravity.TOP or Gravity.START
+                                params.x = (event.rawX - floatingView!!.width / 2).toInt()
                                 params.y = (event.rawY - floatingView!!.height / 2).toInt()
                                 windowManager?.updateViewLayout(floatingView, params)
                             } else {
@@ -181,19 +186,22 @@ class FloatingWidgetService : Service() {
                         if (!isDragging) {
                             // Click without drag
                             if (isDrawerMode) {
-                                // Refresh price
-                                refreshPrice()
-                                // Schedule auto-collapse
-                                scheduleAutoCollapse()
+                                if (isDrawerExpanded) {
+                                    // Already expanded - refresh price and schedule collapse
+                                    refreshPrice()
+                                    scheduleAutoCollapse()
+                                }
+                                // If collapsed, expandDrawer was already called in ACTION_DOWN
+                                // so we don't need to do anything here
                             } else {
-                                // Refresh price
+                                // Regular mode - refresh price
                                 refreshPrice()
                             }
                         } else {
                             // After dragging
                             if (isDrawerMode) {
-                                // Collapse back to edge
-                                collapseDrawer()
+                                // Snap to nearest edge (left or right)
+                                snapToNearestEdge(event.rawX, event.rawY)
                             }
                             // In regular mode, stay where dropped
                         }
@@ -205,6 +213,35 @@ class FloatingWidgetService : Service() {
                 return false
             }
         })
+    }
+    
+    private fun snapToNearestEdge(touchX: Float, touchY: Float) {
+        // Determine which edge is closer
+        val isLeftCloser = touchX < screenWidth / 2
+        
+        // Save Y position
+        val targetY = (touchY - (floatingView?.height ?: 0) / 2).toInt()
+        
+        if (isLeftCloser) {
+            // Snap to left edge
+            isOnRightEdge = false
+            params.gravity = Gravity.TOP or Gravity.START
+            params.y = targetY
+            // Hide, showing only 15px peek
+            val viewWidth = floatingView?.width ?: 0
+            params.x = -(viewWidth - 15)
+        } else {
+            // Snap to right edge
+            isOnRightEdge = true
+            params.gravity = Gravity.TOP or Gravity.END
+            params.y = targetY
+            // Hide, showing only 15px peek
+            val viewWidth = floatingView?.width ?: 0
+            params.x = viewWidth - 15
+        }
+        
+        windowManager?.updateViewLayout(floatingView, params)
+        isDrawerExpanded = false
     }
     
     private fun scheduleAutoCollapse() {
@@ -230,7 +267,7 @@ class FloatingWidgetService : Service() {
     private fun expandDrawer() {
         isDrawerExpanded = true
         
-        // Show fully (x=0 means fully visible from right edge)
+        // Show fully (x=0 means fully visible)
         params.x = 0
         windowManager?.updateViewLayout(floatingView, params)
         
@@ -244,7 +281,17 @@ class FloatingWidgetService : Service() {
         
         // Hide, showing only 15px peek
         val viewWidth = floatingView?.width ?: 0
-        params.x = -(viewWidth - 15)
+        
+        if (isOnRightEdge) {
+            // Right edge: positive x moves widget OFF screen
+            params.gravity = Gravity.TOP or Gravity.END
+            params.x = viewWidth - 15
+        } else {
+            // Left edge: negative x moves widget OFF screen
+            params.gravity = Gravity.TOP or Gravity.START
+            params.x = -(viewWidth - 15)
+        }
+        
         windowManager?.updateViewLayout(floatingView, params)
     }
     
