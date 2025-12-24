@@ -253,21 +253,24 @@ class FloatingWidgetService : Service() {
         priceText?.visibility = View.GONE
         shekelText?.visibility = View.GONE
         
-        PriceApi.getCurrentPrice { price, error ->
-            Handler(Looper.getMainLooper()).post {
-                progressBar?.visibility = View.GONE
-                
-                if (price != null) {
+        Thread {
+            try {
+                val price = PriceApi.getCurrentPrice()
+                Handler(Looper.getMainLooper()).post {
+                    progressBar?.visibility = View.GONE
                     priceText?.text = price.toString()
                     priceText?.visibility = View.VISIBLE
                     shekelText?.visibility = View.VISIBLE
-                } else {
+                }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post {
+                    progressBar?.visibility = View.GONE
                     priceText?.text = "--"
                     priceText?.visibility = View.VISIBLE
-                    Toast.makeText(this, error ?: "שגיאה בטעינת המחיר", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "שגיאה בטעינת המחיר", Toast.LENGTH_SHORT).show()
                 }
             }
-        }
+        }.start()
     }
 
     override fun onDestroy() {
