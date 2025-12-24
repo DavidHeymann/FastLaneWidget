@@ -1,305 +1,192 @@
 package com.fastlane.pricewidget
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
-import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.view.Gravity
+import android.util.DisplayMetrics
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
+import jp.co.recruit_lifestyle.android.floatingview.FloatingViewListener
+import jp.co.recruit_lifestyle.android.floatingview.FloatingViewManager
 
-class FloatingWidgetService : Service() {
+class FloatingWidgetService : Service(), FloatingViewListener {
 
-    private var windowManager: WindowManager? = null
+    companion object {
+        const val NOTIFICATION_ID = 100
+    }
+
+    private var floatingViewManager: FloatingViewManager? = null
     private var floatingView: View? = null
+    
+    // UI elements
     private var priceText: TextView? = null
     private var shekelText: TextView? = null
     private var progressBar: ProgressBar? = null
     
-    private var initialX = 0
-    private var initialY = 0
-    private var initialTouchX = 0f
-    private var initialTouchY = 0f
-    private var isDragging = false
-    
-    // For drawer mode
+    // Drawer state tracking
     private var isDrawerMode = false
-    private var isDrawerExpanded = false
-    private var isOnRightEdge = true  // Track which edge drawer is on (true=right, false=left)
+    private var isExpanded = false
     private var screenWidth = 0
-    private lateinit var params: WindowManager.LayoutParams
-    
-    // Long press detection
-    private val longPressHandler = Handler(Looper.getMainLooper())
-    private var isLongPress = false
-    private val LONG_PRESS_TIMEOUT = 1000L
-    
-    // Auto-collapse timer
-    private val autoCollapseHandler = Handler(Looper.getMainLooper())
-    private val AUTO_COLLAPSE_DELAY = 3000L
+    private var lastClickTime = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onCreate() {
-        super.onCreate()
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (floatingViewManager != null) {
+            return START_STICKY
+        }
+
+        // Get screen metrics
+        val metrics = DisplayMetrics()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        windowManager.defaultDisplay.getMetrics(metrics)
+        screenWidth = metrics.widthPixels
+
+        // Inflate the floating view
+        val inflater = LayoutInflater.from(this)
         
-        // Get screen width for drawer mode
-        val display = (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay
-        val size = android.graphics.Point()
-        display.getRealSize(size)
-        screenWidth = size.x
-        
-        val widgetSize = WidgetPreferences.getFloatingSize(this)
-        val layoutId = when (widgetSize) {
+        // Use appropriate size based on preferences
+        val size = WidgetPreferences.getFloatingSize(this)
+        val layoutRes = when (size) {
             "small" -> R.layout.floating_widget_small
             "large" -> R.layout.floating_widget_large
             else -> R.layout.floating_widget_medium
         }
         
-        floatingView = LayoutInflater.from(this).inflate(layoutId, null)
-        priceText = floatingView?.findViewById(R.id.floating_price)
-        shekelText = floatingView?.findViewById(R.id.floating_shekel)
-        progressBar = floatingView?.findViewById(R.id.floating_progress)
+        floatingView = inflater.inflate(layoutRes, null, false)
         
-        val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
-        
-        params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            layoutFlag,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-            PixelFormat.TRANSLUCENT
-        )
+        // Get UI elements
+        priceText = floatingView?.findViewById(R.id.price_text)
+        shekelText = floatingView?.findViewById(R.id.shekel_text)
+        progressBar = floatingView?.findViewById(R.id.progress_bar)
         
         // Check if drawer mode is enabled
         isDrawerMode = WidgetPreferences.isDrawerMode(this)
         
-        if (isDrawerMode) {
-            // Drawer mode: Start hidden on right edge
-            params.gravity = Gravity.TOP or Gravity.END
-            params.y = 100  // Starting height
-            params.x = 0  // Will be adjusted after measurement
-            isDrawerExpanded = false
-        } else {
-            // Regular floating mode - start at top-left
-            params.gravity = Gravity.TOP or Gravity.START
-            params.x = 100
-            params.y = 100
+        // Setup click listener
+        floatingView?.setOnClickListener {
+            handleClick()
         }
-        
+
+        // Create FloatingViewManager
+        floatingViewManager = FloatingViewManager(this, this)
+        floatingViewManager?.apply {
+            if (isDrawerMode) {
+                // Drawer mode: snap to nearest edge
+                setMoveDirection(FloatingViewManager.MOVE_DIRECTION_NEAREST)
+            } else {
+                // Regular mode: don't snap to edges
+                setMoveDirection(FloatingViewManager.MOVE_DIRECTION_NONE)
+            }
+            
+            // Enable physics animations for smooth movement
+            setUsePhysicsBasedAnimation(true)
+            
+            // Always show (don't hide in fullscreen)
+            setDisplayMode(FloatingViewManager.DISPLAY_MODE_SHOW_ALWAYS)
+        }
+
+        // Setup options
+        val options = FloatingViewManager.Options().apply {
+            // Margin from screen edge (in pixels)
+            overMargin = (16 * metrics.density).toInt()
+            
+            // Check for saved position
+            val prefs = getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
+            val savedX = prefs.getInt("last_x", -1)
+            val savedY = prefs.getInt("last_y", -1)
+            
+            if (savedX != -1 && savedY != -1) {
+                // Use saved position
+                floatingViewX = savedX
+                floatingViewY = savedY
+            } else {
+                // Default position: top-right
+                floatingViewX = metrics.widthPixels - (100 * metrics.density).toInt()
+                floatingViewY = (100 * metrics.density).toInt()
+            }
+        }
+
+        // Add view to window
+        floatingViewManager?.addViewToWindow(floatingView, options)
+
         // Apply opacity
         val opacity = WidgetPreferences.getFloatingOpacity(this)
         floatingView?.alpha = opacity
-        
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        windowManager?.addView(floatingView, params)
-        
-        // For drawer mode, hide after view is measured
-        if (isDrawerMode) {
-            floatingView?.post {
-                val viewWidth = floatingView?.width ?: 0
-                // With Gravity.END, positive x moves widget OFF screen to the right
-                // Show only 15px peek
-                params.x = viewWidth - 15
-                windowManager?.updateViewLayout(floatingView, params)
-            }
-        }
-        
-        setupTouchListener()
-        
-        // Update price
+
+        // Start foreground
+        startForeground(NOTIFICATION_ID, createNotification())
+
+        // Initial price update
         refreshPrice()
+
+        return START_STICKY
+    }
+
+    override fun onFinishFloatingView() {
+        stopSelf()
+    }
+
+    override fun onTouchFinished(isFinishing: Boolean, x: Int, y: Int) {
+        // Save position when touch finished
+        val prefs = getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putInt("last_x", x)
+            putInt("last_y", y)
+            apply()
+        }
+        
+        // Track if drawer is expanded or collapsed
+        if (isDrawerMode) {
+            // Calculate if widget is near edge (collapsed) or in center (expanded)
+            val viewWidth = floatingView?.width ?: 0
+            val distanceFromLeftEdge = x
+            val distanceFromRightEdge = screenWidth - x - viewWidth
+            
+            // If less than 50px from edge, consider it collapsed
+            isExpanded = distanceFromLeftEdge > 50 && distanceFromRightEdge > 50
+        }
     }
     
-    private fun setupTouchListener() {
-        floatingView?.setOnTouchListener(object : View.OnTouchListener {
-            override fun onTouch(v: View, event: MotionEvent): Boolean {
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        initialX = params.x
-                        initialY = params.y
-                        initialTouchX = event.rawX
-                        initialTouchY = event.rawY
-                        isDragging = false
-                        isLongPress = false
-                        
-                        // Cancel auto-collapse
-                        autoCollapseHandler.removeCallbacksAndMessages(null)
-                        
-                        // In drawer mode, expand on touch
-                        if (isDrawerMode && !isDrawerExpanded) {
-                            expandDrawer()
-                        }
-                        
-                        // Start long press detection
-                        longPressHandler.postDelayed({
-                            isLongPress = true
-                            onLongPress()
-                        }, LONG_PRESS_TIMEOUT)
-                        
-                        return true
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        val deltaX = event.rawX - initialTouchX
-                        val deltaY = event.rawY - initialTouchY
-                        
-                        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-                            isDragging = true
-                            longPressHandler.removeCallbacksAndMessages(null)
-                            
-                            if (isDrawerMode) {
-                                // Allow both horizontal and vertical dragging
-                                // Temporarily use START gravity for free movement
-                                params.gravity = Gravity.TOP or Gravity.START
-                                params.x = (event.rawX - floatingView!!.width / 2).toInt()
-                                params.y = (event.rawY - floatingView!!.height / 2).toInt()
-                                windowManager?.updateViewLayout(floatingView, params)
-                            } else {
-                                // Regular mode - free dragging
-                                params.x = initialX + deltaX.toInt()
-                                params.y = initialY + deltaY.toInt()
-                                windowManager?.updateViewLayout(floatingView, params)
-                            }
-                        }
-                        return true
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        longPressHandler.removeCallbacksAndMessages(null)
-                        
-                        if (isLongPress) {
-                            return true
-                        }
-                        
-                        if (!isDragging) {
-                            // Click without drag
-                            if (isDrawerMode) {
-                                if (isDrawerExpanded) {
-                                    // Already expanded - refresh price and schedule collapse
-                                    refreshPrice()
-                                    scheduleAutoCollapse()
-                                }
-                                // If collapsed, expandDrawer was already called in ACTION_DOWN
-                                // so we don't need to do anything here
-                            } else {
-                                // Regular mode - refresh price
-                                refreshPrice()
-                            }
-                        } else {
-                            // After dragging
-                            if (isDrawerMode) {
-                                // Snap to nearest edge (left or right)
-                                snapToNearestEdge(event.rawX, event.rawY)
-                            }
-                            // In regular mode, stay where dropped
-                        }
-                        
-                        isDragging = false
-                        return true
-                    }
-                }
-                return false
+    private fun handleClick() {
+        // Prevent double clicks
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastClickTime < 500) {
+            return
+        }
+        lastClickTime = currentTime
+        
+        if (isDrawerMode) {
+            // In drawer mode: only refresh if already expanded
+            if (isExpanded) {
+                refreshPrice()
             }
-        })
-    }
-    
-    private fun snapToNearestEdge(touchX: Float, touchY: Float) {
-        // Determine which edge is closer
-        val isLeftCloser = touchX < screenWidth / 2
-        
-        // Save Y position
-        val targetY = (touchY - (floatingView?.height ?: 0) / 2).toInt()
-        
-        if (isLeftCloser) {
-            // Snap to left edge
-            isOnRightEdge = false
-            params.gravity = Gravity.TOP or Gravity.START
-            params.y = targetY
-            // Hide, showing only 15px peek
-            val viewWidth = floatingView?.width ?: 0
-            params.x = -(viewWidth - 15)
+            // If collapsed, the library will expand it automatically via drag
         } else {
-            // Snap to right edge
-            isOnRightEdge = true
-            params.gravity = Gravity.TOP or Gravity.END
-            params.y = targetY
-            // Hide, showing only 15px peek
-            val viewWidth = floatingView?.width ?: 0
-            params.x = viewWidth - 15
+            // In regular mode: always refresh
+            refreshPrice()
         }
-        
-        windowManager?.updateViewLayout(floatingView, params)
-        isDrawerExpanded = false
     }
-    
-    private fun scheduleAutoCollapse() {
-        autoCollapseHandler.removeCallbacksAndMessages(null)
-        autoCollapseHandler.postDelayed({
-            collapseDrawer()
-        }, AUTO_COLLAPSE_DELAY)
-    }
-    
-    private fun onLongPress() {
-        // Show confirmation dialog via toast
-        Toast.makeText(this, "לחיצה ארוכה נוספת תכבה את הWidget הצף", Toast.LENGTH_SHORT).show()
-        
-        // Schedule close after another second
-        longPressHandler.postDelayed({
-            // Disable floating widget
-            WidgetPreferences.setFloatingWidgetEnabled(this, false)
-            Toast.makeText(this, "Widget צף כובה", Toast.LENGTH_SHORT).show()
-            stopSelf()
-        }, 1000)
-    }
-    
-    private fun expandDrawer() {
-        isDrawerExpanded = true
-        
-        // Show fully (x=0 means fully visible)
-        params.x = 0
-        windowManager?.updateViewLayout(floatingView, params)
-        
-        // Schedule auto-collapse
-        scheduleAutoCollapse()
-    }
-    
-    private fun collapseDrawer() {
-        isDrawerExpanded = false
-        autoCollapseHandler.removeCallbacksAndMessages(null)
-        
-        // Hide, showing only 15px peek
-        val viewWidth = floatingView?.width ?: 0
-        
-        if (isOnRightEdge) {
-            // Right edge: positive x moves widget OFF screen
-            params.gravity = Gravity.TOP or Gravity.END
-            params.x = viewWidth - 15
-        } else {
-            // Left edge: negative x moves widget OFF screen
-            params.gravity = Gravity.TOP or Gravity.START
-            params.x = -(viewWidth - 15)
-        }
-        
-        windowManager?.updateViewLayout(floatingView, params)
-    }
-    
+
     private fun refreshPrice() {
         progressBar?.visibility = View.VISIBLE
         priceText?.visibility = View.GONE
         shekelText?.visibility = View.GONE
-        
+
         Thread {
             try {
                 val price = PriceApi.getCurrentPrice()
@@ -320,12 +207,31 @@ class FloatingWidgetService : Service() {
         }.start()
     }
 
+    private fun createNotification(): Notification {
+        val channelId = "floating_widget_channel"
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Floating Widget",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Shows floating widget on screen"
+            }
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager?.createNotificationChannel(channel)
+        }
+
+        return NotificationCompat.Builder(this, channelId)
+            .setContentTitle("Fast Lane Price")
+            .setContentText("Widget is active")
+            .setSmallIcon(R.drawable.ic_launcher)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        if (floatingView != null) {
-            windowManager?.removeView(floatingView)
-        }
-        longPressHandler.removeCallbacksAndMessages(null)
-        autoCollapseHandler.removeCallbacksAndMessages(null)
+        floatingViewManager?.removeAllViewToWindow()
     }
 }
