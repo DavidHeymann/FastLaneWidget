@@ -87,20 +87,11 @@ class FloatingWidgetService : Service() {
         isDrawerMode = WidgetPreferences.isDrawerMode(this)
         
         if (isDrawerMode) {
-            // Start as collapsed drawer on the right edge (hidden)
-            // Use TOP + END gravity for consistent Y positioning
+            // Drawer mode: Start hidden on right edge
             params.gravity = Gravity.TOP or Gravity.END
-            params.y = 100  // Start at 100px from top (user can drag to any height)
-            
-            // Wait for view to be measured
-            floatingView?.post {
-                val viewWidth = floatingView?.width ?: 0
-                // Hide almost completely, show only 15px tab
-                // With Gravity.END, positive x moves it OFF screen (to the right)
-                params.x = viewWidth - 15
-                windowManager?.updateViewLayout(floatingView, params)
-            }
-            params.x = 200 // Initial guess (positive = off-screen with END gravity)
+            params.y = 100  // Starting height
+            // We'll set x after view is measured
+            isDrawerExpanded = false
         } else {
             // Regular floating mode - start at top-left
             params.gravity = Gravity.TOP or Gravity.START
@@ -114,6 +105,16 @@ class FloatingWidgetService : Service() {
         
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         windowManager?.addView(floatingView, params)
+        
+        // For drawer mode, hide after view is measured
+        if (isDrawerMode) {
+            floatingView?.post {
+                val viewWidth = floatingView?.width ?: 0
+                // Hide completely, showing only 15px peek
+                params.x = -(viewWidth - 15)
+                windowManager?.updateViewLayout(floatingView, params)
+            }
+        }
         
         setupTouchListener()
         
@@ -136,6 +137,11 @@ class FloatingWidgetService : Service() {
                         // Cancel auto-collapse
                         autoCollapseHandler.removeCallbacksAndMessages(null)
                         
+                        // In drawer mode, expand on touch
+                        if (isDrawerMode && !isDrawerExpanded) {
+                            expandDrawer()
+                        }
+                        
                         // Start long press detection
                         longPressHandler.postDelayed({
                             isLongPress = true
@@ -153,15 +159,7 @@ class FloatingWidgetService : Service() {
                             longPressHandler.removeCallbacksAndMessages(null)
                             
                             if (isDrawerMode) {
-                                // In drawer mode - allow free dragging
-                                if (!isDrawerExpanded) {
-                                    // Expand first if collapsed
-                                    expandDrawer()
-                                }
-                                
-                                // Free drag
-                                params.gravity = Gravity.TOP or Gravity.START
-                                params.x = (event.rawX - floatingView!!.width / 2).toInt()
+                                // Allow vertical dragging only
                                 params.y = (event.rawY - floatingView!!.height / 2).toInt()
                                 windowManager?.updateViewLayout(floatingView, params)
                             } else {
@@ -181,9 +179,12 @@ class FloatingWidgetService : Service() {
                         }
                         
                         if (!isDragging) {
-                            // Click
+                            // Click without drag
                             if (isDrawerMode) {
-                                toggleDrawer()
+                                // Refresh price
+                                refreshPrice()
+                                // Schedule auto-collapse
+                                scheduleAutoCollapse()
                             } else {
                                 // Refresh price
                                 refreshPrice()
@@ -191,8 +192,8 @@ class FloatingWidgetService : Service() {
                         } else {
                             // After dragging
                             if (isDrawerMode) {
-                                // Smart snap to nearest edge
-                                snapToNearestEdge(event.rawX, event.rawY)
+                                // Collapse back to edge
+                                collapseDrawer()
                             }
                             // In regular mode, stay where dropped
                         }
@@ -206,33 +207,11 @@ class FloatingWidgetService : Service() {
         })
     }
     
-    private fun snapToNearestEdge(x: Float, y: Float) {
-        // Determine which edge is closer
-        val isLeftCloser = x < screenWidth / 2
-        
-        // Calculate Y position EXACTLY as it was during dragging
-        // We want the CENTER of the widget to be at 'y' position
-        val targetY = (y - (floatingView?.height ?: 0) / 2).toInt()
-        
-        // Snap to the nearest edge
-        if (isLeftCloser) {
-            // Snap to left edge
-            params.gravity = Gravity.TOP or Gravity.START
-        } else {
-            // Snap to right edge
-            params.gravity = Gravity.TOP or Gravity.END
-        }
-        
-        // Set Y position to maintain exact height where user released
-        params.y = targetY
-        
-        // Collapse to show only tab
-        val viewWidth = floatingView?.width ?: 0
-        // With END/START gravity, positive x pushes widget off-screen
-        params.x = viewWidth - 15
-        
-        windowManager?.updateViewLayout(floatingView, params)
-        isDrawerExpanded = false
+    private fun scheduleAutoCollapse() {
+        autoCollapseHandler.removeCallbacksAndMessages(null)
+        autoCollapseHandler.postDelayed({
+            collapseDrawer()
+        }, AUTO_COLLAPSE_DELAY)
     }
     
     private fun onLongPress() {
@@ -248,111 +227,47 @@ class FloatingWidgetService : Service() {
         }, 1000)
     }
     
-    private fun toggleDrawer() {
-        if (isDrawerExpanded) {
-            collapseDrawer()
-        } else {
-            expandDrawer()
-            // Refresh price when opening
-            refreshPrice()
-        }
-    }
-    
     private fun expandDrawer() {
         isDrawerExpanded = true
         
-        // Animate to fully visible (x=0 means fully on screen)
+        // Show fully (x=0 means fully visible from right edge)
         params.x = 0
         windowManager?.updateViewLayout(floatingView, params)
         
         // Schedule auto-collapse
-        autoCollapseHandler.postDelayed({
-            collapseDrawer()
-        }, AUTO_COLLAPSE_DELAY)
+        scheduleAutoCollapse()
     }
     
     private fun collapseDrawer() {
         isDrawerExpanded = false
         autoCollapseHandler.removeCallbacksAndMessages(null)
         
-        // Animate to hidden (show only 15px tab)
-        // With Gravity.END, positive x pushes widget OFF screen to the right
+        // Hide, showing only 15px peek
         val viewWidth = floatingView?.width ?: 0
-        params.x = viewWidth - 15
+        params.x = -(viewWidth - 15)
         windowManager?.updateViewLayout(floatingView, params)
     }
     
     private fun refreshPrice() {
-        // Show progress
         progressBar?.visibility = View.VISIBLE
+        priceText?.visibility = View.GONE
+        shekelText?.visibility = View.GONE
         
-        Thread {
-            try {
-                val price = PriceApi.getCurrentPrice()
+        PriceApi.getCurrentPrice { price, error ->
+            Handler(Looper.getMainLooper()).post {
+                progressBar?.visibility = View.GONE
                 
-                // Update UI on main thread
-                Handler(Looper.getMainLooper()).post {
-                    // Hide progress
-                    progressBar?.visibility = View.GONE
-                    
+                if (price != null) {
                     priceText?.text = price.toString()
-                    
-                    // Update color based on threshold and theme
-                    val threshold1 = WidgetPreferences.getLowToMediumThreshold(this)
-                    val threshold2 = WidgetPreferences.getMediumToHighThreshold(this)
-                    
-                    // Get current theme
-                    val themeName = WidgetPreferences.getColorTheme(this)
-                    
-                    // Determine color based on price zone and theme
-                    val colorHex = when {
-                        price <= threshold1 -> { // Green zone
-                            when (themeName) {
-                                "vibrant" -> "#4CAF50"
-                                "dark" -> "#2E7D32"
-                                "minimal" -> "#E8F5E9"
-                                "neon" -> "#00FF88"
-                                else -> "#A8E6CF" // pastel
-                            }
-                        }
-                        price <= threshold2 -> { // Yellow zone
-                            when (themeName) {
-                                "vibrant" -> "#FFC107"
-                                "dark" -> "#F57C00"
-                                "minimal" -> "#FFF8E1"
-                                "neon" -> "#FFFF00"
-                                else -> "#FFE5B4" // pastel
-                            }
-                        }
-                        else -> { // Red zone
-                            when (themeName) {
-                                "vibrant" -> "#F44336"
-                                "dark" -> "#C62828"
-                                "minimal" -> "#FFEBEE"
-                                "neon" -> "#FF00FF"
-                                else -> "#FFB3BA" // pastel
-                            }
-                        }
-                    }
-                    
-                    val color = android.graphics.Color.parseColor(colorHex)
-                    priceText?.setTextColor(color)
-                    shekelText?.setTextColor(color)
-                    
-                    // Check for notifications
-                    PriceNotificationManager.checkAndNotify(this, price)
-                    
-                    // Show feedback toast
-                    Toast.makeText(this, "עודכן: ₪$price", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                // Hide progress on error
-                Handler(Looper.getMainLooper()).post {
-                    progressBar?.visibility = View.GONE
-                    Toast.makeText(this, "שגיאה בעדכון מחיר", Toast.LENGTH_SHORT).show()
+                    priceText?.visibility = View.VISIBLE
+                    shekelText?.visibility = View.VISIBLE
+                } else {
+                    priceText?.text = "--"
+                    priceText?.visibility = View.VISIBLE
+                    Toast.makeText(this, error ?: "שגיאה בטעינת המחיר", Toast.LENGTH_SHORT).show()
                 }
             }
-        }.start()
+        }
     }
 
     override fun onDestroy() {

@@ -438,14 +438,13 @@
                     android:textColor="#27AE60"
                     android:textStyle="bold"
                     android:gravity="center"
-                    android:layout_marginBottom="4dp" />
+                    android:layout_marginBottom="8dp" />
                 
-                <SeekBar
-                    android:id="@+id/threshold1_seekbar"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:max="300"
-                    android:progress="10" />
+                <NumberPicker
+                    android:id="@+id/threshold1_picker"
+                    android:layout_width="wrap_content"
+                    android:layout_height="120dp"
+                    android:layout_gravity="center" />
                 
                 <View
                     android:layout_width="match_parent"
@@ -478,39 +477,13 @@
                     android:textColor="#E74C3C"
                     android:textStyle="bold"
                     android:gravity="center"
-                    android:layout_marginBottom="4dp" />
+                    android:layout_marginBottom="8dp" />
                 
-                <SeekBar
-                    android:id="@+id/threshold2_seekbar"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:max="300"
-                    android:progress="25" />
-                
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginTop="8dp">
-                    
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="₪0"
-                        android:textSize="12sp"
-                        android:textColor="#95A5A6"
-                        android:gravity="start" />
-                    
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="₪50"
-                        android:textSize="12sp"
-                        android:textColor="#95A5A6"
-                        android:gravity="end" />
-                </LinearLayout>
+                <NumberPicker
+                    android:id="@+id/threshold2_picker"
+                    android:layout_width="wrap_content"
+                    android:layout_height="120dp"
+                    android:layout_gravity="center" />
                 
                 <View
                     android:layout_width="match_parent"

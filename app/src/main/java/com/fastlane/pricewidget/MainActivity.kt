@@ -25,9 +25,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var floatingOpacitySeekBar: SeekBar
     private lateinit var drawerModeSwitch: Switch
     private lateinit var priceAlertSwitch: Switch
-    private lateinit var threshold1SeekBar: SeekBar
+    private lateinit var threshold1Picker: NumberPicker
     private lateinit var threshold1Text: TextView
-    private lateinit var threshold2SeekBar: SeekBar
+    private lateinit var threshold2Picker: NumberPicker
     private lateinit var threshold2Text: TextView
     private lateinit var resetAlertsButton: Button
     private lateinit var saveButton: Button
@@ -105,9 +105,9 @@ class MainActivity : AppCompatActivity() {
         floatingOpacitySeekBar = findViewById(R.id.floating_opacity_seekbar)
         drawerModeSwitch = findViewById(R.id.drawer_mode_switch)
         priceAlertSwitch = findViewById(R.id.price_alert_switch)
-        threshold1SeekBar = findViewById(R.id.threshold1_seekbar)
+        threshold1Picker = findViewById(R.id.threshold1_picker)
         threshold1Text = findViewById(R.id.threshold1_text)
-        threshold2SeekBar = findViewById(R.id.threshold2_seekbar)
+        threshold2Picker = findViewById(R.id.threshold2_picker)
         threshold2Text = findViewById(R.id.threshold2_text)
         resetAlertsButton = findViewById(R.id.reset_alerts_button)
         saveButton = findViewById(R.id.save_button)
@@ -119,6 +119,15 @@ class MainActivity : AppCompatActivity() {
         startHourPicker.maxValue = 23
         endHourPicker.minValue = 0
         endHourPicker.maxValue = 23
+        
+        // Setup threshold pickers (0-300)
+        threshold1Picker.minValue = 0
+        threshold1Picker.maxValue = 300
+        threshold1Picker.wrapSelectorWheel = false
+        
+        threshold2Picker.minValue = 0
+        threshold2Picker.maxValue = 300
+        threshold2Picker.wrapSelectorWheel = false
 
         // Setup days checkboxes
         val days = listOf(
@@ -199,11 +208,11 @@ class MainActivity : AppCompatActivity() {
         
         // Load thresholds into temp variables (will be saved on button click)
         tempThreshold1 = WidgetPreferences.getLowToMediumThreshold(this)
-        threshold1SeekBar.progress = tempThreshold1
+        threshold1Picker.value = tempThreshold1
         threshold1Text.text = "₪$tempThreshold1"
         
         tempThreshold2 = WidgetPreferences.getMediumToHighThreshold(this)
-        threshold2SeekBar.progress = tempThreshold2
+        threshold2Picker.value = tempThreshold2
         threshold2Text.text = "₪$tempThreshold2"
     }
 
@@ -316,43 +325,31 @@ class MainActivity : AppCompatActivity() {
             WidgetPreferences.setPriceAlertEnabled(this, isChecked)
         }
 
-        threshold1SeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                threshold1Text.text = "₪$progress"
-                // Update temp variable only
-                tempThreshold1 = progress
+        threshold1Picker.setOnValueChangedListener { _, _, newVal ->
+            threshold1Text.text = "₪$newVal"
+            tempThreshold1 = newVal
+            
+            // Validate: threshold1 must be < threshold2
+            if (tempThreshold1 >= tempThreshold2) {
+                tempThreshold1 = tempThreshold2 - 1
+                threshold1Picker.value = tempThreshold1
+                threshold1Text.text = "₪$tempThreshold1"
+                Toast.makeText(this, "סף ירוק→צהוב חייב להיות נמוך מסף צהוב→אדום", Toast.LENGTH_SHORT).show()
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                // Validate when user releases
-                if (tempThreshold1 >= tempThreshold2) {
-                    tempThreshold1 = tempThreshold2 - 1
-                    seekBar?.progress = tempThreshold1
-                    threshold1Text.text = "₪$tempThreshold1"
-                    Toast.makeText(this@MainActivity, "סף ירוק→צהוב חייב להיות נמוך מסף צהוב→אדום", Toast.LENGTH_SHORT).show()
-                }
-                // Don't save yet - wait for save button click
-            }
-        })
+        }
         
-        threshold2SeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                threshold2Text.text = "₪$progress"
-                // Update temp variable only
-                tempThreshold2 = progress
+        threshold2Picker.setOnValueChangedListener { _, _, newVal ->
+            threshold2Text.text = "₪$newVal"
+            tempThreshold2 = newVal
+            
+            // Validate: threshold2 must be > threshold1
+            if (tempThreshold2 <= tempThreshold1) {
+                tempThreshold2 = tempThreshold1 + 1
+                threshold2Picker.value = tempThreshold2
+                threshold2Text.text = "₪$tempThreshold2"
+                Toast.makeText(this, "סף צהוב→אדום חייב להיות גבוה מסף ירוק→צהוב", Toast.LENGTH_SHORT).show()
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                // Validate when user releases
-                if (tempThreshold2 <= tempThreshold1) {
-                    tempThreshold2 = tempThreshold1 + 1
-                    seekBar?.progress = tempThreshold2
-                    threshold2Text.text = "₪$tempThreshold2"
-                    Toast.makeText(this@MainActivity, "סף צהוב→אדום חייב להיות גבוה מסף ירוק→צהוב", Toast.LENGTH_SHORT).show()
-                }
-                // Don't save yet - wait for save button click
-            }
-        })
+        }
 
         // Reset alerts button
         resetAlertsButton.setOnClickListener {

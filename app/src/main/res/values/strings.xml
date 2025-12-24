@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Nativ Mahir Price</string>
+    <string name="app_name">Fast Lane Price</string>
     <string name="widget_description">מציג את המחיר הנוכחי בנתיב המהיר</string>
     <string name="road_icon">Road Icon</string>
     <string name="loading">טוען…</string>
