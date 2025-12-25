@@ -28,21 +28,9 @@ class PriceUpdateReceiver : BroadcastReceiver() {
         if (intent.action == ACTION_PRICE_UPDATED) {
             val price = intent.getIntExtra(EXTRA_PRICE, -1)
             if (price > 0) {
-                // Save price to preferences
+                // Save price to preferences - widgets update themselves directly
                 WidgetPreferences.setLastPrice(context, price)
                 WidgetPreferences.setLastUpdateTime(context, System.currentTimeMillis())
-                
-                // Update home widget
-                FastLaneWidget.updateAllWidgets(context)
-                
-                // Update floating widget if running
-                if (WidgetPreferences.isFloatingWidgetEnabled(context)) {
-                    val serviceIntent = Intent(context, FloatingWidgetService::class.java).apply {
-                        action = FloatingWidgetService.ACTION_UPDATE_PRICE
-                        putExtra(EXTRA_PRICE, price)
-                    }
-                    context.startService(serviceIntent)
-                }
             }
         }
     }

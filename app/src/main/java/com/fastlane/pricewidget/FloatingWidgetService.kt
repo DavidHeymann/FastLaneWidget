@@ -18,10 +18,6 @@ import android.widget.Toast
 
 class FloatingWidgetService : Service() {
 
-    companion object {
-        const val ACTION_UPDATE_PRICE = "com.fastlane.pricewidget.UPDATE_FLOATING_PRICE"
-    }
-
     private var windowManager: WindowManager? = null
     private var floatingView: View? = null
     private var closeTarget: View? = null
@@ -95,22 +91,14 @@ class FloatingWidgetService : Service() {
         setupCloseTarget()
         setupTouchListener()
         
+        // Load last saved price if available
+        val lastPrice = WidgetPreferences.getLastPrice(this)
+        if (lastPrice > 0) {
+            updatePriceDisplay(lastPrice)
+        }
+        
         // Initial price fetch
         refreshPrice()
-    }
-    
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        intent?.let {
-            when (it.action) {
-                ACTION_UPDATE_PRICE -> {
-                    val price = it.getIntExtra(PriceUpdateReceiver.EXTRA_PRICE, -1)
-                    if (price > 0) {
-                        updatePriceDisplay(price)
-                    }
-                }
-            }
-        }
-        return START_STICKY
     }
     
     private fun setupCloseTarget() {
@@ -120,9 +108,6 @@ class FloatingWidgetService : Service() {
         
         // Create close target (red circle with X)
         closeTarget = LayoutInflater.from(this).inflate(R.layout.close_target, null)
-        
-        // Get screen height for positioning
-        val displayMetrics = resources.displayMetrics
         
         closeTargetParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -320,7 +305,10 @@ class FloatingWidgetService : Service() {
                     // Hide progress
                     progressBar?.visibility = View.GONE
                     
-                    // Broadcast price update - this will update all widgets
+                    // Update this floating widget directly
+                    updatePriceDisplay(price)
+                    
+                    // Also broadcast to update home widgets and save price
                     PriceUpdateReceiver.broadcastPriceUpdate(this, price)
                     
                     // Show feedback toast

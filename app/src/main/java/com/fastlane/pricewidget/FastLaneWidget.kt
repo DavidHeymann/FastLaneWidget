@@ -29,6 +29,14 @@ class FastLaneWidget : AppWidgetProvider() {
             intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
             context.sendBroadcast(intent)
         }
+        
+        /**
+         * Update all widgets with a specific price
+         */
+        fun updateWidgetWithPrice(context: Context, price: Int) {
+            val instance = FastLaneWidget()
+            instance.updateWidgetWithPriceInternal(context, price)
+        }
     }
 
     override fun onUpdate(
@@ -93,6 +101,45 @@ class FastLaneWidget : AppWidgetProvider() {
         
         val views = RemoteViews(context.packageName, layoutId)
         
+        // Load and display last saved price if available
+        val lastPrice = WidgetPreferences.getLastPrice(context)
+        if (lastPrice > 0) {
+            views.setTextViewText(R.id.price_text, lastPrice.toString())
+            views.setViewVisibility(R.id.loading_progress, android.view.View.GONE)
+            
+            // Set color based on saved price
+            val threshold1 = WidgetPreferences.getLowToMediumThreshold(context)
+            val threshold2 = WidgetPreferences.getMediumToHighThreshold(context)
+            val themeName = WidgetPreferences.getColorTheme(context)
+            
+            val colorHex = when {
+                lastPrice <= threshold1 -> when (themeName) {
+                    "vibrant" -> "#4CAF50"
+                    "dark" -> "#2E7D32"
+                    "minimal" -> "#E8F5E9"
+                    "neon" -> "#00FF88"
+                    else -> "#A8E6CF"
+                }
+                lastPrice <= threshold2 -> when (themeName) {
+                    "vibrant" -> "#FFC107"
+                    "dark" -> "#F57C00"
+                    "minimal" -> "#FFF8E1"
+                    "neon" -> "#FFFF00"
+                    else -> "#FFE5B4"
+                }
+                else -> when (themeName) {
+                    "vibrant" -> "#F44336"
+                    "dark" -> "#C62828"
+                    "minimal" -> "#FFEBEE"
+                    "neon" -> "#FF00FF"
+                    else -> "#FFB3BA"
+                }
+            }
+            
+            val backgroundColor = android.graphics.Color.parseColor(colorHex)
+            views.setInt(R.id.widget_container, "setBackgroundColor", backgroundColor)
+        }
+        
         // Set click listener for manual refresh
         val intent = Intent(context, FastLaneWidget::class.java).apply {
             action = ACTION_REFRESH
@@ -114,7 +161,10 @@ class FastLaneWidget : AppWidgetProvider() {
             try {
                 val price = PriceApi.getCurrentPrice()
                 
-                // Broadcast price update - this will update all widgets
+                // Update this widget directly
+                updateWidgetWithPriceInternal(context, price)
+                
+                // Also broadcast to save price (FloatingWidget will update itself if clicked)
                 PriceUpdateReceiver.broadcastPriceUpdate(context, price)
                 
                 // Schedule next update if in active hours
@@ -159,7 +209,7 @@ class FastLaneWidget : AppWidgetProvider() {
         }
     }
 
-    private fun updateWidgetWithPrice(context: Context, price: Int) {
+    private fun updateWidgetWithPriceInternal(context: Context, price: Int) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val ids = appWidgetManager.getAppWidgetIds(
             ComponentName(context, FastLaneWidget::class.java)

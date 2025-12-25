@@ -89,7 +89,7 @@ object PriceNotificationManager {
             PriceZone.RED -> Triple("🔴", "נתיב המהיר - תעריף מוגזם", android.graphics.Color.parseColor("#E74C3C"))
         }
         
-        val message = buildNotificationMessage(price, fromZone, toZone, threshold1, threshold2)
+        val message = buildNotificationMessage(price, fromZone, toZone)
         
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
@@ -112,9 +112,7 @@ object PriceNotificationManager {
     private fun buildNotificationMessage(
         price: Int,
         fromZone: PriceZone,
-        toZone: PriceZone,
-        threshold1: Int,
-        threshold2: Int
+        toZone: PriceZone
     ): String {
         return when {
             // To Green zone (regular price)

@@ -143,7 +143,6 @@ class MainActivity : AppCompatActivity() {
 
         // Setup color theme spinner
         val themeNames = listOf("פסטל רך", "צבעוני", "כהה", "מינימלי", "ניאון")
-        val themeIds = listOf("pastel", "vibrant", "dark", "minimal", "neon")
         colorThemeSpinner.adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_item,
@@ -243,7 +242,7 @@ class MainActivity : AppCompatActivity() {
         })
 
         // Days
-        dayCheckBoxes.forEach { (dayNum, checkBox) ->
+        dayCheckBoxes.forEach { (_, checkBox) ->
             checkBox.setOnCheckedChangeListener { _, _ ->
                 val selectedDays = dayCheckBoxes.filter { it.value.isChecked }.keys
                 WidgetPreferences.setActiveDays(this, selectedDays)
@@ -441,6 +440,7 @@ class MainActivity : AppCompatActivity() {
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:$packageName")
                 )
+                @Suppress("DEPRECATION")
                 startActivityForResult(intent, REQUEST_OVERLAY_PERMISSION)
             } catch (e: Exception) {
                 Toast.makeText(this, "לא ניתן לפתוח הגדרות", Toast.LENGTH_SHORT).show()
@@ -448,6 +448,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_OVERLAY_PERMISSION) {
