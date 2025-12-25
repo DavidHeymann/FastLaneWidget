@@ -113,7 +113,9 @@ class FastLaneWidget : AppWidgetProvider() {
         Thread {
             try {
                 val price = PriceApi.getCurrentPrice()
-                updateWidgetWithPrice(context, price)
+                
+                // Broadcast price update - this will update all widgets
+                PriceUpdateReceiver.broadcastPriceUpdate(context, price)
                 
                 // Schedule next update if in active hours
                 if (isActiveHours()) {

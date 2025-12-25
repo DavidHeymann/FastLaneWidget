@@ -18,6 +18,10 @@ import android.widget.Toast
 
 class FloatingWidgetService : Service() {
 
+    companion object {
+        const val ACTION_UPDATE_PRICE = "com.fastlane.pricewidget.UPDATE_FLOATING_PRICE"
+    }
+
     private var windowManager: WindowManager? = null
     private var floatingView: View? = null
     private var closeTarget: View? = null
@@ -48,7 +52,7 @@ class FloatingWidgetService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         
         // Get widget size preference
-        val size = WidgetPreferences.getFloatingWidgetSize(this)
+        val size = WidgetPreferences.getFloatingSize(this)
         val layoutId = when (size) {
             "small" -> R.layout.floating_widget_small
             "large" -> R.layout.floating_widget_large
@@ -57,13 +61,13 @@ class FloatingWidgetService : Service() {
         
         floatingView = LayoutInflater.from(this).inflate(layoutId, null)
         
-        priceText = floatingView?.findViewById(R.id.price_text)
-        shekelText = floatingView?.findViewById(R.id.shekel_text)
-        progressBar = floatingView?.findViewById(R.id.progress_bar)
+        priceText = floatingView?.findViewById(R.id.floating_price)
+        shekelText = floatingView?.findViewById(R.id.floating_shekel)
+        progressBar = floatingView?.findViewById(R.id.floating_progress)
         
         // Get saved position or use default
-        val savedX = WidgetPreferences.getFloatingWidgetX(this)
-        val savedY = WidgetPreferences.getFloatingWidgetY(this)
+        val savedX = WidgetPreferences.getFloatingX(this)
+        val savedY = WidgetPreferences.getFloatingY(this)
         
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -83,8 +87,8 @@ class FloatingWidgetService : Service() {
         params.y = savedY
         
         // Get opacity preference
-        val opacity = WidgetPreferences.getFloatingWidgetOpacity(this)
-        floatingView?.alpha = opacity / 100f
+        val opacity = WidgetPreferences.getFloatingOpacity(this)
+        floatingView?.alpha = opacity
         
         windowManager?.addView(floatingView, params)
         
@@ -93,6 +97,20 @@ class FloatingWidgetService : Service() {
         
         // Initial price fetch
         refreshPrice()
+    }
+    
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.let {
+            when (it.action) {
+                ACTION_UPDATE_PRICE -> {
+                    val price = it.getIntExtra(PriceUpdateReceiver.EXTRA_PRICE, -1)
+                    if (price > 0) {
+                        updatePriceDisplay(price)
+                    }
+                }
+            }
+        }
+        return START_STICKY
     }
     
     private fun setupCloseTarget() {
@@ -190,7 +208,7 @@ class FloatingWidgetService : Service() {
                         
                         if (isDragging) {
                             // Save position after dragging
-                            WidgetPreferences.setFloatingWidgetPosition(this@FloatingWidgetService, params.x, params.y)
+                            WidgetPreferences.setFloatingPosition(this@FloatingWidgetService, params.x, params.y)
                         } else if (!isLongPressing) {
                             // Click - refresh price
                             refreshPrice()
@@ -296,59 +314,14 @@ class FloatingWidgetService : Service() {
         
         Thread {
             try {
-                val price = PriceApi.fetchCurrentPrice()
+                val price = PriceApi.getCurrentPrice()
                 
                 Handler(Looper.getMainLooper()).post {
                     // Hide progress
                     progressBar?.visibility = View.GONE
                     
-                    priceText?.text = price.toString()
-                    
-                    // Update text color based on threshold and theme
-                    val threshold1 = WidgetPreferences.getLowToMediumThreshold(this)
-                    val threshold2 = WidgetPreferences.getMediumToHighThreshold(this)
-                    
-                    // Get current theme
-                    val themeName = WidgetPreferences.getColorTheme(this)
-                    
-                    // Determine text color based on price zone and theme
-                    val colorHex = when {
-                        price <= threshold1 -> { // Green zone
-                            when (themeName) {
-                                "vibrant" -> "#4CAF50"
-                                "dark" -> "#2E7D32"
-                                "minimal" -> "#E8F5E9"
-                                "neon" -> "#00FF88"
-                                else -> "#A8E6CF" // pastel
-                            }
-                        }
-                        price <= threshold2 -> { // Yellow zone
-                            when (themeName) {
-                                "vibrant" -> "#FFC107"
-                                "dark" -> "#F57C00"
-                                "minimal" -> "#FFF8E1"
-                                "neon" -> "#FFFF00"
-                                else -> "#FFE5B4" // pastel
-                            }
-                        }
-                        else -> { // Red zone
-                            when (themeName) {
-                                "vibrant" -> "#F44336"
-                                "dark" -> "#C62828"
-                                "minimal" -> "#FFEBEE"
-                                "neon" -> "#FF00FF"
-                                else -> "#FFB3BA" // pastel
-                            }
-                        }
-                    }
-                    
-                    // Update text color only (not background)
-                    val textColor = android.graphics.Color.parseColor(colorHex)
-                    priceText?.setTextColor(textColor)
-                    shekelText?.setTextColor(textColor)
-                    
-                    // Check for notifications
-                    PriceNotificationManager.checkAndNotify(this, price)
+                    // Broadcast price update - this will update all widgets
+                    PriceUpdateReceiver.broadcastPriceUpdate(this, price)
                     
                     // Show feedback toast
                     Toast.makeText(this, "עודכן: ₪$price", Toast.LENGTH_SHORT).show()
@@ -360,6 +333,58 @@ class FloatingWidgetService : Service() {
                     Toast.makeText(this, "שגיאה בעדכון מחיר", Toast.LENGTH_SHORT).show()
                 }
             }
+        }.start()
+    }
+    
+    private fun updatePriceDisplay(price: Int) {
+        priceText?.text = price.toString()
+        
+        // Update text color based on threshold and theme
+        val threshold1 = WidgetPreferences.getLowToMediumThreshold(this)
+        val threshold2 = WidgetPreferences.getMediumToHighThreshold(this)
+        
+        // Get current theme
+        val themeName = WidgetPreferences.getColorTheme(this)
+        
+        // Determine text color based on price zone and theme
+        val colorHex = when {
+            price <= threshold1 -> { // Green zone
+                when (themeName) {
+                    "vibrant" -> "#4CAF50"
+                    "dark" -> "#2E7D32"
+                    "minimal" -> "#E8F5E9"
+                    "neon" -> "#00FF88"
+                    else -> "#A8E6CF" // pastel
+                }
+            }
+            price <= threshold2 -> { // Yellow zone
+                when (themeName) {
+                    "vibrant" -> "#FFC107"
+                    "dark" -> "#F57C00"
+                    "minimal" -> "#FFF8E1"
+                    "neon" -> "#FFFF00"
+                    else -> "#FFE5B4" // pastel
+                }
+            }
+            else -> { // Red zone
+                when (themeName) {
+                    "vibrant" -> "#F44336"
+                    "dark" -> "#C62828"
+                    "minimal" -> "#FFEBEE"
+                    "neon" -> "#FF00FF"
+                    else -> "#FFB3BA" // pastel
+                }
+            }
+        }
+        
+        // Update text color only (not background)
+        val textColor = android.graphics.Color.parseColor(colorHex)
+        priceText?.setTextColor(textColor)
+        shekelText?.setTextColor(textColor)
+        
+        // Check for notifications
+        PriceNotificationManager.checkAndNotify(this, price)
+    }
         }.start()
     }
 

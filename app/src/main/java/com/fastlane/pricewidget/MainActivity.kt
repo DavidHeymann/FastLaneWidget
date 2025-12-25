@@ -363,7 +363,9 @@ class MainActivity : AppCompatActivity() {
                         currentPriceText.text = "₪$price"
                         refreshButton.isEnabled = true
                         refreshButton.text = "רענן מחיר"
-                        updateWidgets()
+                        
+                        // Broadcast price update - this will update all widgets
+                        PriceUpdateReceiver.broadcastPriceUpdate(this, price)
                     }
                 } catch (e: Exception) {
                     runOnUiThread {

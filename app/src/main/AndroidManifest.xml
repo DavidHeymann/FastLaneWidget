@@ -39,6 +39,15 @@
             </intent-filter>
         </receiver>
 
+        <!-- Price Update Receiver -->
+        <receiver
+            android:name=".PriceUpdateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.fastlane.pricewidget.PRICE_UPDATED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Main Activity -->
         <activity
             android:name=".MainActivity"

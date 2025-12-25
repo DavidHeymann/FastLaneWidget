@@ -19,6 +19,8 @@ object WidgetPreferences {
     private const val KEY_PRICE_ALERT_ENABLED = "price_alert_enabled"
     private const val KEY_THRESHOLD_LOW_TO_MEDIUM = "threshold_low_to_medium"
     private const val KEY_THRESHOLD_MEDIUM_TO_HIGH = "threshold_medium_to_high"
+    private const val KEY_LAST_PRICE = "last_price"
+    private const val KEY_LAST_UPDATE_TIME = "last_update_time"
     
     // Default values
     const val DEFAULT_START_HOUR = 7
@@ -111,6 +113,22 @@ object WidgetPreferences {
         getPrefs(context).edit().putFloat(KEY_FLOATING_OPACITY, opacity).apply()
     }
     
+    // Floating widget position
+    fun getFloatingX(context: Context): Int {
+        return getPrefs(context).getInt("floating_x", 0)
+    }
+    
+    fun getFloatingY(context: Context): Int {
+        return getPrefs(context).getInt("floating_y", 100)
+    }
+    
+    fun setFloatingPosition(context: Context, x: Int, y: Int) {
+        getPrefs(context).edit()
+            .putInt("floating_x", x)
+            .putInt("floating_y", y)
+            .apply()
+    }
+    
     // Drawer mode
     fun isDrawerMode(context: Context): Boolean {
         return getPrefs(context).getBoolean("drawer_mode", false)
@@ -157,6 +175,23 @@ object WidgetPreferences {
             price <= mediumToHigh -> PriceZone.YELLOW
             else -> PriceZone.RED
         }
+    }
+    
+    // Last price and update time
+    fun getLastPrice(context: Context): Int {
+        return getPrefs(context).getInt(KEY_LAST_PRICE, 0)
+    }
+    
+    fun setLastPrice(context: Context, price: Int) {
+        getPrefs(context).edit().putInt(KEY_LAST_PRICE, price).apply()
+    }
+    
+    fun getLastUpdateTime(context: Context): Long {
+        return getPrefs(context).getLong(KEY_LAST_UPDATE_TIME, 0L)
+    }
+    
+    fun setLastUpdateTime(context: Context, time: Long) {
+        getPrefs(context).edit().putLong(KEY_LAST_UPDATE_TIME, time).apply()
     }
 }
 
