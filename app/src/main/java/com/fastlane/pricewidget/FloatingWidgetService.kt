@@ -20,6 +20,7 @@ class FloatingWidgetService : Service() {
 
     private var windowManager: WindowManager? = null
     private var floatingView: View? = null
+    private var closeTarget: View? = null
     private var priceText: TextView? = null
     private var shekelText: TextView? = null
     private var progressBar: ProgressBar? = null
@@ -29,101 +30,107 @@ class FloatingWidgetService : Service() {
     private var initialTouchX = 0f
     private var initialTouchY = 0f
     private var isDragging = false
+    private var isLongPressing = false
     
-    // For drawer mode
-    private var isDrawerMode = false
-    private var isDrawerExpanded = false
-    private var screenWidth = 0
-    private lateinit var params: WindowManager.LayoutParams
-    
-    // Long press detection
     private val longPressHandler = Handler(Looper.getMainLooper())
-    private var isLongPress = false
-    private val LONG_PRESS_TIMEOUT = 1000L
+    private val LONG_PRESS_TIMEOUT = 500L
     
-    // Auto-collapse timer
-    private val autoCollapseHandler = Handler(Looper.getMainLooper())
-    private val AUTO_COLLAPSE_DELAY = 3000L
+    private var closeTargetParams: WindowManager.LayoutParams? = null
+    private var closeTargetSize = 0 // Will be calculated from dp
+    
+    private lateinit var params: WindowManager.LayoutParams
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         
-        // Get screen width for drawer mode
-        val display = (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay
-        val size = android.graphics.Point()
-        display.getRealSize(size)
-        screenWidth = size.x
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         
-        val widgetSize = WidgetPreferences.getFloatingSize(this)
-        val layoutId = when (widgetSize) {
+        // Get widget size preference
+        val size = WidgetPreferences.getFloatingWidgetSize(this)
+        val layoutId = when (size) {
             "small" -> R.layout.floating_widget_small
             "large" -> R.layout.floating_widget_large
             else -> R.layout.floating_widget_medium
         }
         
         floatingView = LayoutInflater.from(this).inflate(layoutId, null)
-        priceText = floatingView?.findViewById(R.id.floating_price)
-        shekelText = floatingView?.findViewById(R.id.floating_shekel)
-        progressBar = floatingView?.findViewById(R.id.floating_progress)
         
-        val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+        priceText = floatingView?.findViewById(R.id.price_text)
+        shekelText = floatingView?.findViewById(R.id.shekel_text)
+        progressBar = floatingView?.findViewById(R.id.progress_bar)
+        
+        // Get saved position or use default
+        val savedX = WidgetPreferences.getFloatingWidgetX(this)
+        val savedY = WidgetPreferences.getFloatingWidgetY(this)
         
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            layoutFlag,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         )
         
-        // Check if drawer mode is enabled
-        isDrawerMode = WidgetPreferences.isDrawerMode(this)
+        params.gravity = Gravity.TOP or Gravity.START
+        params.x = savedX
+        params.y = savedY
         
-        if (isDrawerMode) {
-            // Start as collapsed drawer on the right edge (hidden)
-            // Use TOP + END gravity for consistent Y positioning
-            params.gravity = Gravity.TOP or Gravity.END
-            params.y = 100  // Start at 100px from top (user can drag to any height)
-            
-            // Wait for view to be measured
-            floatingView?.post {
-                val viewWidth = floatingView?.width ?: 0
-                // Hide almost completely, show only 15px tab
-                // With Gravity.END, positive x moves it OFF screen (to the right)
-                params.x = viewWidth - 15
-                windowManager?.updateViewLayout(floatingView, params)
-            }
-            params.x = 200 // Initial guess (positive = off-screen with END gravity)
-        } else {
-            // Regular floating mode - start at top-left
-            params.gravity = Gravity.TOP or Gravity.START
-            params.x = 100
-            params.y = 100
-        }
+        // Get opacity preference
+        val opacity = WidgetPreferences.getFloatingWidgetOpacity(this)
+        floatingView?.alpha = opacity / 100f
         
-        // Apply opacity
-        val opacity = WidgetPreferences.getFloatingOpacity(this)
-        floatingView?.alpha = opacity
-        
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         windowManager?.addView(floatingView, params)
         
+        setupCloseTarget()
         setupTouchListener()
         
-        // Update price
+        // Initial price fetch
         refreshPrice()
+    }
+    
+    private fun setupCloseTarget() {
+        // Calculate close target size in pixels (80dp)
+        val density = resources.displayMetrics.density
+        closeTargetSize = (80 * density).toInt()
+        
+        // Create close target (red circle with X)
+        closeTarget = LayoutInflater.from(this).inflate(R.layout.close_target, null)
+        
+        // Get screen height for positioning
+        val displayMetrics = resources.displayMetrics
+        
+        closeTargetParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = 100 // 100px from bottom
+        }
+        
+        // Don't add to window yet - only show when dragging
     }
     
     private fun setupTouchListener() {
         floatingView?.setOnTouchListener(object : View.OnTouchListener {
-            override fun onTouch(v: View, event: MotionEvent): Boolean {
+            override fun onTouch(v: View?, event: MotionEvent?): Boolean {
+                event ?: return false
+                
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         initialX = params.x
@@ -131,15 +138,12 @@ class FloatingWidgetService : Service() {
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
                         isDragging = false
-                        isLongPress = false
+                        isLongPressing = false
                         
-                        // Cancel auto-collapse
-                        autoCollapseHandler.removeCallbacksAndMessages(null)
-                        
-                        // Start long press detection
+                        // Start long press timer
                         longPressHandler.postDelayed({
-                            isLongPress = true
-                            onLongPress()
+                            isLongPressing = true
+                            showCloseTarget()
                         }, LONG_PRESS_TIMEOUT)
                         
                         return true
@@ -149,26 +153,21 @@ class FloatingWidgetService : Service() {
                         val deltaY = event.rawY - initialTouchY
                         
                         if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-                            isDragging = true
-                            longPressHandler.removeCallbacksAndMessages(null)
-                            
-                            if (isDrawerMode) {
-                                // In drawer mode - allow free dragging
-                                if (!isDrawerExpanded) {
-                                    // Expand first if collapsed
-                                    expandDrawer()
+                            if (!isDragging) {
+                                isDragging = true
+                                // Cancel long press if started dragging
+                                if (!isLongPressing) {
+                                    longPressHandler.removeCallbacksAndMessages(null)
                                 }
-                                
-                                // Free drag
-                                params.gravity = Gravity.TOP or Gravity.START
-                                params.x = (event.rawX - floatingView!!.width / 2).toInt()
-                                params.y = (event.rawY - floatingView!!.height / 2).toInt()
-                                windowManager?.updateViewLayout(floatingView, params)
-                            } else {
-                                // Regular mode - free dragging
-                                params.x = initialX + deltaX.toInt()
-                                params.y = initialY + deltaY.toInt()
-                                windowManager?.updateViewLayout(floatingView, params)
+                            }
+                            
+                            params.x = initialX + deltaX.toInt()
+                            params.y = initialY + deltaY.toInt()
+                            windowManager?.updateViewLayout(floatingView, params)
+                            
+                            // Update close target appearance if long pressing
+                            if (isLongPressing) {
+                                updateCloseTargetProximity(event.rawX, event.rawY)
                             }
                         }
                         return true
@@ -176,28 +175,29 @@ class FloatingWidgetService : Service() {
                     MotionEvent.ACTION_UP -> {
                         longPressHandler.removeCallbacksAndMessages(null)
                         
-                        if (isLongPress) {
-                            return true
+                        if (isLongPressing) {
+                            hideCloseTarget()
+                            
+                            // Check if dropped on close target
+                            if (isOverCloseTarget(event.rawX, event.rawY)) {
+                                // Close the widget
+                                WidgetPreferences.setFloatingWidgetEnabled(this@FloatingWidgetService, false)
+                                Toast.makeText(this@FloatingWidgetService, "Widget צף כובה", Toast.LENGTH_SHORT).show()
+                                stopSelf()
+                                return true
+                            }
                         }
                         
-                        if (!isDragging) {
-                            // Click
-                            if (isDrawerMode) {
-                                toggleDrawer()
-                            } else {
-                                // Refresh price
-                                refreshPrice()
-                            }
-                        } else {
-                            // After dragging
-                            if (isDrawerMode) {
-                                // Smart snap to nearest edge
-                                snapToNearestEdge(event.rawX, event.rawY)
-                            }
-                            // In regular mode, stay where dropped
+                        if (isDragging) {
+                            // Save position after dragging
+                            WidgetPreferences.setFloatingWidgetPosition(this@FloatingWidgetService, params.x, params.y)
+                        } else if (!isLongPressing) {
+                            // Click - refresh price
+                            refreshPrice()
                         }
                         
                         isDragging = false
+                        isLongPressing = false
                         return true
                     }
                 }
@@ -206,80 +206,88 @@ class FloatingWidgetService : Service() {
         })
     }
     
-    private fun snapToNearestEdge(x: Float, y: Float) {
-        // Determine which edge is closer
-        val isLeftCloser = x < screenWidth / 2
-        
-        // Calculate Y position EXACTLY as it was during dragging
-        // We want the CENTER of the widget to be at 'y' position
-        val targetY = (y - (floatingView?.height ?: 0) / 2).toInt()
-        
-        // Snap to the nearest edge
-        if (isLeftCloser) {
-            // Snap to left edge
-            params.gravity = Gravity.TOP or Gravity.START
-        } else {
-            // Snap to right edge
-            params.gravity = Gravity.TOP or Gravity.END
-        }
-        
-        // Set Y position to maintain exact height where user released
-        params.y = targetY
-        
-        // Collapse to show only tab
-        val viewWidth = floatingView?.width ?: 0
-        // With END/START gravity, positive x pushes widget off-screen
-        params.x = viewWidth - 15
-        
-        windowManager?.updateViewLayout(floatingView, params)
-        isDrawerExpanded = false
-    }
-    
-    private fun onLongPress() {
-        // Show confirmation dialog via toast
-        Toast.makeText(this, "לחיצה ארוכה נוספת תכבה את הWidget הצף", Toast.LENGTH_SHORT).show()
-        
-        // Schedule close after another second
-        longPressHandler.postDelayed({
-            // Disable floating widget
-            WidgetPreferences.setFloatingWidgetEnabled(this, false)
-            Toast.makeText(this, "Widget צף כובה", Toast.LENGTH_SHORT).show()
-            stopSelf()
-        }, 1000)
-    }
-    
-    private fun toggleDrawer() {
-        if (isDrawerExpanded) {
-            collapseDrawer()
-        } else {
-            expandDrawer()
-            // Refresh price when opening
-            refreshPrice()
+    private fun showCloseTarget() {
+        try {
+            closeTarget?.let {
+                if (it.parent == null) {
+                    windowManager?.addView(it, closeTargetParams)
+                }
+                it.alpha = 0f
+                it.animate()
+                    .alpha(1f)
+                    .scaleX(1.2f)
+                    .scaleY(1.2f)
+                    .setDuration(200)
+                    .start()
+            }
+        } catch (e: Exception) {
+            // View might already be added
         }
     }
     
-    private fun expandDrawer() {
-        isDrawerExpanded = true
-        
-        // Animate to fully visible (x=0 means fully on screen)
-        params.x = 0
-        windowManager?.updateViewLayout(floatingView, params)
-        
-        // Schedule auto-collapse
-        autoCollapseHandler.postDelayed({
-            collapseDrawer()
-        }, AUTO_COLLAPSE_DELAY)
+    private fun hideCloseTarget() {
+        closeTarget?.let {
+            it.animate()
+                .alpha(0f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(200)
+                .withEndAction {
+                    try {
+                        windowManager?.removeView(it)
+                    } catch (e: Exception) {
+                        // View might already be removed
+                    }
+                }
+                .start()
+        }
     }
     
-    private fun collapseDrawer() {
-        isDrawerExpanded = false
-        autoCollapseHandler.removeCallbacksAndMessages(null)
+    private fun updateCloseTargetProximity(x: Float, y: Float) {
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
         
-        // Animate to hidden (show only 15px tab)
-        // With Gravity.END, positive x pushes widget OFF screen to the right
-        val viewWidth = floatingView?.width ?: 0
-        params.x = viewWidth - 15
-        windowManager?.updateViewLayout(floatingView, params)
+        // Close target is at bottom center
+        val targetX = screenWidth / 2f
+        val targetY = screenHeight - 100f - closeTargetSize / 2f
+        
+        val distance = Math.sqrt(
+            Math.pow((x - targetX).toDouble(), 2.0) +
+            Math.pow((y - targetY).toDouble(), 2.0)
+        ).toFloat()
+        
+        // If close, make it bigger and more vibrant
+        if (distance < closeTargetSize * 1.5f) {
+            closeTarget?.animate()
+                ?.scaleX(1.5f)
+                ?.scaleY(1.5f)
+                ?.setDuration(100)
+                ?.start()
+        } else {
+            closeTarget?.animate()
+                ?.scaleX(1.2f)
+                ?.scaleY(1.2f)
+                ?.setDuration(100)
+                ?.start()
+        }
+    }
+    
+    private fun isOverCloseTarget(x: Float, y: Float): Boolean {
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        
+        // Close target is at bottom center
+        val targetX = screenWidth / 2f
+        val targetY = screenHeight - 100f - closeTargetSize / 2f
+        
+        val distance = Math.sqrt(
+            Math.pow((x - targetX).toDouble(), 2.0) +
+            Math.pow((y - targetY).toDouble(), 2.0)
+        ).toFloat()
+        
+        return distance < closeTargetSize / 2f
     }
     
     private fun refreshPrice() {
@@ -288,23 +296,22 @@ class FloatingWidgetService : Service() {
         
         Thread {
             try {
-                val price = PriceApi.getCurrentPrice()
+                val price = PriceApi.fetchCurrentPrice()
                 
-                // Update UI on main thread
                 Handler(Looper.getMainLooper()).post {
                     // Hide progress
                     progressBar?.visibility = View.GONE
                     
                     priceText?.text = price.toString()
                     
-                    // Update color based on threshold and theme
+                    // Update text color based on threshold and theme
                     val threshold1 = WidgetPreferences.getLowToMediumThreshold(this)
                     val threshold2 = WidgetPreferences.getMediumToHighThreshold(this)
                     
                     // Get current theme
                     val themeName = WidgetPreferences.getColorTheme(this)
                     
-                    // Determine color based on price zone and theme
+                    // Determine text color based on price zone and theme
                     val colorHex = when {
                         price <= threshold1 -> { // Green zone
                             when (themeName) {
@@ -335,15 +342,8 @@ class FloatingWidgetService : Service() {
                         }
                     }
                     
-                    // Background color - same as home widget
-                    val backgroundColor = android.graphics.Color.parseColor(colorHex)
-                    floatingView?.setBackgroundColor(backgroundColor)
-                    
-                    // Text color - choose contrasting color for readability
-                    val textColor = when (themeName) {
-                        "dark", "neon" -> android.graphics.Color.WHITE  // Light text for dark backgrounds
-                        else -> android.graphics.Color.parseColor("#2C3E50")  // Dark text for light backgrounds
-                    }
+                    // Update text color only (not background)
+                    val textColor = android.graphics.Color.parseColor(colorHex)
                     priceText?.setTextColor(textColor)
                     shekelText?.setTextColor(textColor)
                     
@@ -366,13 +366,21 @@ class FloatingWidgetService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         
+        // Remove handlers
+        longPressHandler.removeCallbacksAndMessages(null)
+        
+        // Remove close target
+        try {
+            closeTarget?.let {
+                windowManager?.removeView(it)
+            }
+        } catch (e: Exception) {
+            // Already removed
+        }
+        
         // Remove floating view
         if (floatingView != null) {
             windowManager?.removeView(floatingView)
         }
-        
-        // Remove handlers
-        longPressHandler.removeCallbacksAndMessages(null)
-        autoCollapseHandler.removeCallbacksAndMessages(null)
     }
 }

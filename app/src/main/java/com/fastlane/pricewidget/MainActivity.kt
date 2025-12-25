@@ -23,7 +23,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var floatingWidgetSwitch: Switch
     private lateinit var floatingSizeSpinner: Spinner
     private lateinit var floatingOpacitySeekBar: SeekBar
-    private lateinit var drawerModeSwitch: Switch
     private lateinit var priceAlertSwitch: Switch
     private lateinit var threshold1Picker: NumberPicker
     private lateinit var threshold1Text: TextView
@@ -103,7 +102,6 @@ class MainActivity : AppCompatActivity() {
         floatingWidgetSwitch = findViewById(R.id.floating_widget_switch)
         floatingSizeSpinner = findViewById(R.id.floating_size_spinner)
         floatingOpacitySeekBar = findViewById(R.id.floating_opacity_seekbar)
-        drawerModeSwitch = findViewById(R.id.drawer_mode_switch)
         priceAlertSwitch = findViewById(R.id.price_alert_switch)
         threshold1Picker = findViewById(R.id.threshold1_picker)
         threshold1Text = findViewById(R.id.threshold1_text)
@@ -199,9 +197,6 @@ class MainActivity : AppCompatActivity() {
             }
         )
         floatingOpacitySeekBar.progress = (WidgetPreferences.getFloatingOpacity(this) * 100).toInt()
-        
-        // Drawer mode
-        drawerModeSwitch.isChecked = WidgetPreferences.isDrawerMode(this)
 
         // Price alerts
         priceAlertSwitch.isChecked = WidgetPreferences.isPriceAlertEnabled(this)
@@ -312,13 +307,6 @@ class MainActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
         
-        // Drawer mode
-        drawerModeSwitch.setOnCheckedChangeListener { _, isChecked ->
-            WidgetPreferences.setDrawerMode(this, isChecked)
-            if (WidgetPreferences.isFloatingWidgetEnabled(this)) {
-                restartFloatingWidget()
-            }
-        }
 
         // Price alerts
         priceAlertSwitch.setOnCheckedChangeListener { _, isChecked ->
