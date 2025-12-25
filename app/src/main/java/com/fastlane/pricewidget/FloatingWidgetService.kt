@@ -385,8 +385,6 @@ class FloatingWidgetService : Service() {
         // Check for notifications
         PriceNotificationManager.checkAndNotify(this, price)
     }
-        }.start()
-    }
 
     override fun onDestroy() {
         super.onDestroy()
