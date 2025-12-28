@@ -116,7 +116,6 @@ class FastLaneWidget : AppWidgetProvider() {
         val lastPrice = WidgetPreferences.getLastPrice(context)
         if (lastPrice > 0) {
             views.setTextViewText(R.id.price_text, lastPrice.toString())
-            views.setViewVisibility(R.id.loading_progress, android.view.View.GONE)
             
             // Set color based on saved price
             val threshold1 = WidgetPreferences.getLowToMediumThreshold(context)
