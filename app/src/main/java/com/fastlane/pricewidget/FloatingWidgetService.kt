@@ -17,6 +17,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -28,6 +29,7 @@ class FloatingWidgetService : Service() {
     private var floatingView: View? = null
     private var floatingContainer: View? = null
     private var closeTarget: View? = null
+    private var closeIcon: ImageView? = null
     private var priceText: TextView? = null
     private var shekelText: TextView? = null
     private var progressBar: ProgressBar? = null
@@ -123,12 +125,13 @@ class FloatingWidgetService : Service() {
     }
 
     private fun setupCloseTarget() {
-        // Calculate close target size in pixels (100dp)
+        // Calculate close target size in pixels (70dp)
         val density = resources.displayMetrics.density
-        closeTargetSize = (100 * density).toInt()
+        closeTargetSize = (70 * density).toInt()
 
         // Create close target (transparent circle with white border and white X)
         closeTarget = LayoutInflater.from(this).inflate(R.layout.close_target, null)
+        closeIcon = closeTarget?.findViewById(R.id.close_icon)
         
         closeTargetParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -284,23 +287,59 @@ class FloatingWidgetService : Service() {
         // Detection area matches the circle radius exactly
         val detectionRadius = closeTargetSize / 2f
 
-        // Visual feedback: scale up when widget is inside the circle
+        // Visual feedback: scale up BOTH circle and X together and make bolder when widget is inside
         if (distance < detectionRadius) {
-            // Widget is in close zone - scale up
+            // Widget is in close zone - scale up circle
             closeTarget?.animate()
-                ?.scaleX(1.3f)
-                ?.scaleY(1.3f)
+                ?.scaleX(1.2f)
+                ?.scaleY(1.2f)
                 ?.alpha(1f)
                 ?.setDuration(150)
                 ?.start()
+
+            // Scale up X icon together with circle
+            closeIcon?.animate()
+                ?.scaleX(1.2f)
+                ?.scaleY(1.2f)
+                ?.setDuration(150)
+                ?.start()
+
+            // Make the circle stroke bolder
+            val drawable = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(android.graphics.Color.TRANSPARENT)
+                setStroke(
+                    (6 * resources.displayMetrics.density).toInt(), // Bolder stroke
+                    android.graphics.Color.WHITE
+                )
+            }
+            closeTarget?.background = drawable
         } else {
-            // Widget is outside - normal size
+            // Widget is outside - normal size and stroke
             closeTarget?.animate()
                 ?.scaleX(1.0f)
                 ?.scaleY(1.0f)
                 ?.alpha(0.8f)
                 ?.setDuration(150)
                 ?.start()
+
+            // Reset X icon to normal size
+            closeIcon?.animate()
+                ?.scaleX(1.0f)
+                ?.scaleY(1.0f)
+                ?.setDuration(150)
+                ?.start()
+
+            // Reset to normal stroke
+            val drawable = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(android.graphics.Color.TRANSPARENT)
+                setStroke(
+                    (3 * resources.displayMetrics.density).toInt(), // Normal stroke
+                    android.graphics.Color.WHITE
+                )
+            }
+            closeTarget?.background = drawable
         }
     }
 
