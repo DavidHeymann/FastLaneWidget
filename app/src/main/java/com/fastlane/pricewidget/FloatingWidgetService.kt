@@ -1,6 +1,5 @@
 package com.fastlane.pricewidget
 
-import android.app.AlertDialog
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -39,6 +38,7 @@ class FloatingWidgetService : Service() {
     private var initialTouchY = 0f
     private var isDragging = false
     private var isLongPressing = false
+    private var isReadyToRemove = false
 
     private val longPressHandler = Handler(Looper.getMainLooper())
     private val LONG_PRESS_TIMEOUT = 500L
@@ -185,42 +185,21 @@ class FloatingWidgetService : Service() {
         // Provide haptic feedback for long press
         floatingView?.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
 
-        // Create dialog with menu options
-        val options = arrayOf("רענן מחיר", "הגדרות", "הסרת וידג'ט")
-
-        val builder = AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-        builder.setItems(options) { dialog, which ->
-            when (which) {
-                0 -> {
-                    // Refresh price
-                    refreshPrice()
-                }
-                1 -> {
-                    // Open settings (MainActivity)
-                    val intent = Intent(this, MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    startActivity(intent)
-                }
-                2 -> {
-                    // Remove widget
-                    WidgetPreferences.setFloatingWidgetEnabled(this, false)
-                    Toast.makeText(this, "Widget צף הוסר", Toast.LENGTH_SHORT).show()
-                    stopSelf()
-                }
-            }
-            dialog.dismiss()
-        }
-
-        // Create and show dialog with TYPE_APPLICATION_OVERLAY
-        val dialog = builder.create()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        if (isReadyToRemove) {
+            // Second long press - remove widget
+            WidgetPreferences.setFloatingWidgetEnabled(this, false)
+            Toast.makeText(this, "Widget צף הוסר", Toast.LENGTH_SHORT).show()
+            stopSelf()
         } else {
-            @Suppress("DEPRECATION")
-            dialog.window?.setType(WindowManager.LayoutParams.TYPE_PHONE)
+            // First long press - show options
+            Toast.makeText(this, "לחץ והחזק שוב להסרת Widget", Toast.LENGTH_LONG).show()
+            isReadyToRemove = true
+
+            // Reset flag after 3 seconds
+            Handler(Looper.getMainLooper()).postDelayed({
+                isReadyToRemove = false
+            }, 3000)
         }
-        dialog.show()
     }
 
     private fun refreshPrice() {
