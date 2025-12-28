@@ -8,6 +8,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.widget.RemoteViews
@@ -436,58 +437,92 @@ class FastLaneWidget : AppWidgetProvider() {
     }
 
     private fun scheduleUpdates(context: Context) {
-        // Cancel any existing alarms first
-        stopScheduledUpdates(context)
+        try {
+            // Cancel any existing alarms first
+            stopScheduledUpdates(context)
 
-        // Only schedule if in active hours
-        if (!isActiveHours(context)) {
-            return
+            // Only schedule if in active hours
+            if (!isActiveHours(context)) {
+                return
+            }
+
+            // Use AlarmManager for persistent scheduling (survives process death)
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+            if (alarmManager == null) {
+                android.util.Log.e("FastLaneWidget", "AlarmManager is null, cannot schedule updates")
+                return
+            }
+
+            val intent = Intent(context, FastLaneWidget::class.java).apply {
+                action = ACTION_AUTO_UPDATE
+            }
+
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                AUTO_UPDATE_REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            // Get interval from preferences (in seconds), convert to milliseconds
+            val intervalSeconds = WidgetPreferences.getUpdateInterval(context)
+            val intervalMillis = intervalSeconds * 1000L
+
+            // Calculate next trigger time
+            val triggerAtMillis = System.currentTimeMillis() + intervalMillis
+
+            // Use setExactAndAllowWhileIdle for precise timing even in Doze mode
+            // On Android 12+ (API 31+), check if we can schedule exact alarms
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAtMillis,
+                        pendingIntent
+                    )
+                } else {
+                    // Fallback to inexact alarm
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAtMillis,
+                        pendingIntent
+                    )
+                }
+            } else {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                )
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FastLaneWidget", "Error scheduling updates: ${e.message}", e)
         }
-
-        // Use AlarmManager for persistent scheduling (survives process death)
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
-        val intent = Intent(context, FastLaneWidget::class.java).apply {
-            action = ACTION_AUTO_UPDATE
-        }
-
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            AUTO_UPDATE_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // Get interval from preferences (in seconds), convert to milliseconds
-        val intervalSeconds = WidgetPreferences.getUpdateInterval(context)
-        val intervalMillis = intervalSeconds * 1000L
-
-        // Calculate next trigger time
-        val triggerAtMillis = System.currentTimeMillis() + intervalMillis
-
-        // Use setExactAndAllowWhileIdle for precise timing even in Doze mode
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            triggerAtMillis,
-            pendingIntent
-        )
     }
 
     private fun stopScheduledUpdates(context: Context) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        try {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+            if (alarmManager == null) {
+                android.util.Log.e("FastLaneWidget", "AlarmManager is null, cannot stop updates")
+                return
+            }
 
-        val intent = Intent(context, FastLaneWidget::class.java).apply {
-            action = ACTION_AUTO_UPDATE
+            val intent = Intent(context, FastLaneWidget::class.java).apply {
+                action = ACTION_AUTO_UPDATE
+            }
+
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                AUTO_UPDATE_REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            alarmManager.cancel(pendingIntent)
+            pendingIntent.cancel()
+        } catch (e: Exception) {
+            android.util.Log.e("FastLaneWidget", "Error stopping updates: ${e.message}", e)
         }
-
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            AUTO_UPDATE_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        alarmManager.cancel(pendingIntent)
-        pendingIntent.cancel()
     }
 }
