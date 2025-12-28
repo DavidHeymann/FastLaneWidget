@@ -1,5 +1,9 @@
 package com.fastlane.pricewidget
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.graphics.PixelFormat
@@ -15,11 +19,13 @@ import android.view.WindowManager
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
 
 class FloatingWidgetService : Service() {
 
     private var windowManager: WindowManager? = null
     private var floatingView: View? = null
+    private var floatingContainer: View? = null
     private var closeTarget: View? = null
     private var priceText: TextView? = null
     private var shekelText: TextView? = null
@@ -42,9 +48,17 @@ class FloatingWidgetService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    companion object {
+        private const val NOTIFICATION_CHANNEL_ID = "floating_widget_channel"
+        private const val NOTIFICATION_ID = 1001
+    }
+
     override fun onCreate() {
         super.onCreate()
-        
+
+        // Start as foreground service to prevent being killed
+        startForeground(NOTIFICATION_ID, createNotification())
+
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         
         // Get widget size preference
@@ -56,7 +70,8 @@ class FloatingWidgetService : Service() {
         }
         
         floatingView = LayoutInflater.from(this).inflate(layoutId, null)
-        
+
+        floatingContainer = floatingView?.findViewById(R.id.floating_container)
         priceText = floatingView?.findViewById(R.id.floating_price)
         shekelText = floatingView?.findViewById(R.id.floating_shekel)
         progressBar = floatingView?.findViewById(R.id.floating_progress)
@@ -100,13 +115,18 @@ class FloatingWidgetService : Service() {
         // Initial price fetch
         refreshPrice()
     }
-    
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Return START_STICKY to restart service if killed by system
+        return START_STICKY
+    }
+
     private fun setupCloseTarget() {
-        // Calculate close target size in pixels (80dp)
+        // Calculate close target size in pixels (120dp)
         val density = resources.displayMetrics.density
-        closeTargetSize = (80 * density).toInt()
-        
-        // Create close target (red circle with X)
+        closeTargetSize = (120 * density).toInt()
+
+        // Create close target (white circle with black X)
         closeTarget = LayoutInflater.from(this).inflate(R.layout.close_target, null)
         
         closeTargetParams = WindowManager.LayoutParams(
@@ -250,47 +270,59 @@ class FloatingWidgetService : Service() {
         val displayMetrics = resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
-        
+
         // Close target is at bottom center
         val targetX = screenWidth / 2f
         val targetY = screenHeight - 100f - closeTargetSize / 2f
-        
+
         val distance = Math.sqrt(
             Math.pow((x - targetX).toDouble(), 2.0) +
             Math.pow((y - targetY).toDouble(), 2.0)
         ).toFloat()
-        
-        // If close, make it bigger and more vibrant
-        if (distance < closeTargetSize * 1.5f) {
+
+        // Increased detection area - 2x the size of the target
+        val detectionRadius = closeTargetSize * 1.2f
+
+        // Visual feedback: scale up and add red background when widget is near
+        if (distance < detectionRadius) {
             closeTarget?.animate()
-                ?.scaleX(1.5f)
-                ?.scaleY(1.5f)
+                ?.scaleX(1.3f)
+                ?.scaleY(1.3f)
+                ?.alpha(1f)
                 ?.setDuration(100)
                 ?.start()
+
+            // Change background to red to indicate drop zone
+            closeTarget?.setBackgroundColor(android.graphics.Color.parseColor("#FF5252"))
         } else {
             closeTarget?.animate()
-                ?.scaleX(1.2f)
-                ?.scaleY(1.2f)
+                ?.scaleX(1.0f)
+                ?.scaleY(1.0f)
+                ?.alpha(0.9f)
                 ?.setDuration(100)
                 ?.start()
+
+            // Reset to white background
+            closeTarget?.setBackgroundColor(android.graphics.Color.TRANSPARENT)
         }
     }
-    
+
     private fun isOverCloseTarget(x: Float, y: Float): Boolean {
         val displayMetrics = resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
-        
+
         // Close target is at bottom center
         val targetX = screenWidth / 2f
         val targetY = screenHeight - 100f - closeTargetSize / 2f
-        
+
         val distance = Math.sqrt(
             Math.pow((x - targetX).toDouble(), 2.0) +
             Math.pow((y - targetY).toDouble(), 2.0)
         ).toFloat()
-        
-        return distance < closeTargetSize / 2f
+
+        // Increased detection area - 2x the size for easier dropping
+        return distance < closeTargetSize * 1.2f
     }
     
     private fun refreshPrice() {
@@ -326,15 +358,15 @@ class FloatingWidgetService : Service() {
     
     private fun updatePriceDisplay(price: Int) {
         priceText?.text = price.toString()
-        
-        // Update text color based on threshold and theme
+
+        // Update background color based on threshold and theme
         val threshold1 = WidgetPreferences.getLowToMediumThreshold(this)
         val threshold2 = WidgetPreferences.getMediumToHighThreshold(this)
-        
+
         // Get current theme
         val themeName = WidgetPreferences.getColorTheme(this)
-        
-        // Determine text color based on price zone and theme
+
+        // Determine background color based on price zone and theme
         val colorHex = when {
             price <= threshold1 -> { // Green zone
                 when (themeName) {
@@ -364,14 +396,52 @@ class FloatingWidgetService : Service() {
                 }
             }
         }
-        
-        // Update text color only (not background)
-        val textColor = android.graphics.Color.parseColor(colorHex)
+
+        // Update background color of the container and set text to black for better readability
+        val backgroundColor = android.graphics.Color.parseColor(colorHex)
+        floatingContainer?.setBackgroundColor(backgroundColor)
+
+        // Set text color to black for maximum contrast
+        val textColor = android.graphics.Color.BLACK
         priceText?.setTextColor(textColor)
         shekelText?.setTextColor(textColor)
-        
+
         // Check for notifications
         PriceNotificationManager.checkAndNotify(this, price)
+    }
+
+    private fun createNotification(): Notification {
+        // Create notification channel for Android O and above
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                "Floating Widget Service",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Keeps the floating price widget running"
+                setShowBadge(false)
+            }
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager?.createNotificationChannel(channel)
+        }
+
+        // Create intent to open main activity when notification is clicked
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Build notification
+        return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setContentTitle("Fast Lane Widget")
+            .setContentText("Widget צף פעיל")
+            .setSmallIcon(R.drawable.ic_road)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .build()
     }
 
     override fun onDestroy() {

@@ -184,27 +184,67 @@ class FastLaneWidget : AppWidgetProvider() {
             ComponentName(context, FastLaneWidget::class.java)
         )
 
+        // Get last saved price to preserve it during loading
+        val lastPrice = WidgetPreferences.getLastPrice(context)
+
         for (appWidgetId in ids) {
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
             val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
-            
+
             val layoutId = if (minWidth < 100 || minHeight < 100) {
                 R.layout.widget_layout_small
             } else {
                 R.layout.widget_layout
             }
-            
+
             val views = RemoteViews(context.packageName, layoutId)
-            
+
+            // Keep showing the last price if available instead of "--"
+            if (lastPrice > 0) {
+                views.setTextViewText(R.id.price_text, lastPrice.toString())
+
+                // Keep the background color based on last price
+                val threshold1 = WidgetPreferences.getLowToMediumThreshold(context)
+                val threshold2 = WidgetPreferences.getMediumToHighThreshold(context)
+                val themeName = WidgetPreferences.getColorTheme(context)
+
+                val colorHex = when {
+                    lastPrice <= threshold1 -> when (themeName) {
+                        "vibrant" -> "#4CAF50"
+                        "dark" -> "#2E7D32"
+                        "minimal" -> "#E8F5E9"
+                        "neon" -> "#00FF88"
+                        else -> "#A8E6CF"
+                    }
+                    lastPrice <= threshold2 -> when (themeName) {
+                        "vibrant" -> "#FFC107"
+                        "dark" -> "#F57C00"
+                        "minimal" -> "#FFF8E1"
+                        "neon" -> "#FFFF00"
+                        else -> "#FFE5B4"
+                    }
+                    else -> when (themeName) {
+                        "vibrant" -> "#F44336"
+                        "dark" -> "#C62828"
+                        "minimal" -> "#FFEBEE"
+                        "neon" -> "#FF00FF"
+                        else -> "#FFB3BA"
+                    }
+                }
+
+                val backgroundColor = android.graphics.Color.parseColor(colorHex)
+                views.setInt(R.id.widget_container, "setBackgroundColor", backgroundColor)
+            }
+
             // Show loading indicator
             views.setViewVisibility(R.id.loading_progress, android.view.View.VISIBLE)
-            
+
             // Update time text to show "מעדכן..." for large layout
             if (layoutId == R.layout.widget_layout) {
                 views.setTextViewText(R.id.update_time, "מעדכן...")
             }
-            
+
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
     }

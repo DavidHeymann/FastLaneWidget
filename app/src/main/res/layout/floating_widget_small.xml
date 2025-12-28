@@ -4,6 +4,7 @@
     android:layout_height="wrap_content">
 
     <LinearLayout
+        android:id="@+id/floating_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -25,7 +26,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="--"
-            android:textColor="#2C3E50"
+            android:textColor="#000000"
             android:textSize="18sp"
             android:textStyle="bold" />
 
@@ -36,7 +37,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="2dp"
             android:text="₪"
-            android:textColor="#2C3E50"
+            android:textColor="#000000"
             android:textSize="14sp" />
     </LinearLayout>
 
