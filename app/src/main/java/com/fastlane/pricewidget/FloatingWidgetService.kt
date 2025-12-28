@@ -43,6 +43,9 @@ class FloatingWidgetService : Service() {
     private val longPressHandler = Handler(Looper.getMainLooper())
     private val LONG_PRESS_TIMEOUT = 500L
 
+    private val autoRefreshHandler = Handler(Looper.getMainLooper())
+    private var autoRefreshRunnable: Runnable? = null
+
     private lateinit var params: WindowManager.LayoutParams
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -112,11 +115,63 @@ class FloatingWidgetService : Service() {
 
         // Initial price fetch
         refreshPrice()
+
+        // Start auto-refresh if enabled
+        scheduleAutoRefresh()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Return START_STICKY to restart service if killed by system
         return START_STICKY
+    }
+
+    private fun scheduleAutoRefresh() {
+        // Cancel any existing schedule
+        stopAutoRefresh()
+
+        // Check if auto-refresh is enabled and we're in active hours
+        if (!isActiveHours()) {
+            return
+        }
+
+        // Get interval from preferences (in seconds)
+        val intervalSeconds = WidgetPreferences.getUpdateInterval(this)
+        val intervalMillis = intervalSeconds * 1000L
+
+        // Create runnable to refresh and reschedule
+        autoRefreshRunnable = Runnable {
+            refreshPrice()
+            scheduleAutoRefresh() // Reschedule next refresh
+        }
+
+        // Schedule the refresh
+        autoRefreshHandler.postDelayed(autoRefreshRunnable!!, intervalMillis)
+    }
+
+    private fun stopAutoRefresh() {
+        autoRefreshRunnable?.let {
+            autoRefreshHandler.removeCallbacks(it)
+        }
+        autoRefreshRunnable = null
+    }
+
+    private fun isActiveHours(): Boolean {
+        val calendar = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Jerusalem"))
+        val dayOfWeek = calendar.get(java.util.Calendar.DAY_OF_WEEK)
+        val hourOfDay = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+
+        if (!WidgetPreferences.isAutoUpdateEnabled(this)) {
+            return false
+        }
+
+        val startHour = WidgetPreferences.getUpdateStartHour(this)
+        val endHour = WidgetPreferences.getUpdateEndHour(this)
+        val activeDays = WidgetPreferences.getActiveDays(this)
+
+        val isDayActive = activeDays.contains(dayOfWeek)
+        val isActiveTime = hourOfDay in startHour until endHour
+
+        return isDayActive && isActiveTime
     }
 
     private fun setupTouchListener() {
@@ -277,15 +332,11 @@ class FloatingWidgetService : Service() {
         // Update background color while preserving rounded corners
         val backgroundColor = android.graphics.Color.parseColor(colorHex)
 
-        // Create a rounded rectangle drawable with the new color
+        // Create a rounded rectangle drawable with the new color (no border)
         val drawable = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = 24f * resources.displayMetrics.density // 24dp radius
             setColor(backgroundColor)
-            setStroke(
-                (2 * resources.displayMetrics.density).toInt(),
-                android.graphics.Color.parseColor("#E0E0E0")
-            )
         }
         floatingContainer?.background = drawable
 
@@ -335,8 +386,12 @@ class FloatingWidgetService : Service() {
     override fun onDestroy() {
         super.onDestroy()
 
+        // Stop auto-refresh
+        stopAutoRefresh()
+
         // Remove handlers
         longPressHandler.removeCallbacksAndMessages(null)
+        autoRefreshHandler.removeCallbacksAndMessages(null)
 
         // Remove floating view
         if (floatingView != null) {
