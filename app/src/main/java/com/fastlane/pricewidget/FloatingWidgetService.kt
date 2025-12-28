@@ -132,7 +132,12 @@ class FloatingWidgetService : Service() {
         // Create close target (transparent circle with white border and white X)
         closeTarget = LayoutInflater.from(this).inflate(R.layout.close_target, null)
         closeIcon = closeTarget?.findViewById(R.id.close_icon)
-        
+
+        // Position at bottom center with proper margins to avoid clipping
+        val displayMetrics = resources.displayMetrics
+        val screenHeight = displayMetrics.heightPixels
+        val bottomMargin = (50 * density).toInt() // 50dp from bottom
+
         closeTargetParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -146,10 +151,12 @@ class FloatingWidgetService : Service() {
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = 100 // 100px from bottom
+            // Use TOP gravity and calculate Y position to avoid clipping
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            x = 0
+            y = screenHeight - closeTargetSize - bottomMargin
         }
-        
+
         // Don't add to window yet - only show when dragging
     }
     
@@ -270,26 +277,46 @@ class FloatingWidgetService : Service() {
         }
     }
     
-    private fun updateCloseTargetProximity(x: Float, y: Float) {
+    private fun getCloseTargetCenter(): Pair<Float, Float> {
         val displayMetrics = resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
+        val density = resources.displayMetrics.density
+        val bottomMargin = (50 * density).toInt()
 
-        // Close target is at bottom center
-        val targetX = screenWidth / 2f
-        val targetY = screenHeight - 100f - closeTargetSize / 2f
+        // Calculate center of close target
+        val targetCenterX = screenWidth / 2f
+        val targetCenterY = screenHeight - bottomMargin - closeTargetSize / 2f
 
+        return Pair(targetCenterX, targetCenterY)
+    }
+
+    private fun getFloatingWidgetCenter(): Pair<Float, Float> {
+        // Get the current position and size of the floating widget
+        val location = IntArray(2)
+        floatingView?.getLocationOnScreen(location)
+
+        val widgetCenterX = location[0] + (floatingView?.width ?: 0) / 2f
+        val widgetCenterY = location[1] + (floatingView?.height ?: 0) / 2f
+
+        return Pair(widgetCenterX, widgetCenterY)
+    }
+
+    private fun updateCloseTargetProximity(x: Float, y: Float) {
+        val (targetCenterX, targetCenterY) = getCloseTargetCenter()
+
+        // Calculate distance from widget touch point to close target center
         val distance = Math.sqrt(
-            Math.pow((x - targetX).toDouble(), 2.0) +
-            Math.pow((y - targetY).toDouble(), 2.0)
+            Math.pow((x - targetCenterX).toDouble(), 2.0) +
+            Math.pow((y - targetCenterY).toDouble(), 2.0)
         ).toFloat()
 
-        // Detection area matches the circle radius exactly
-        val detectionRadius = closeTargetSize / 2f
+        // Circle radius
+        val circleRadius = closeTargetSize / 2f
 
-        // Visual feedback: scale up BOTH circle and X together and make bolder when widget is inside
-        if (distance < detectionRadius) {
-            // Widget is in close zone - scale up circle
+        // Visual feedback: scale up BOTH circle and X together when widget center is INSIDE circle
+        if (distance < circleRadius) {
+            // Widget center is INSIDE the circle - scale up and make bold
             closeTarget?.animate()
                 ?.scaleX(1.2f)
                 ?.scaleY(1.2f)
@@ -315,7 +342,7 @@ class FloatingWidgetService : Service() {
             }
             closeTarget?.background = drawable
         } else {
-            // Widget is outside - normal size and stroke
+            // Widget is OUTSIDE - normal size and stroke
             closeTarget?.animate()
                 ?.scaleX(1.0f)
                 ?.scaleY(1.0f)
@@ -344,20 +371,15 @@ class FloatingWidgetService : Service() {
     }
 
     private fun isOverCloseTarget(x: Float, y: Float): Boolean {
-        val displayMetrics = resources.displayMetrics
-        val screenWidth = displayMetrics.widthPixels
-        val screenHeight = displayMetrics.heightPixels
+        val (targetCenterX, targetCenterY) = getCloseTargetCenter()
 
-        // Close target is at bottom center
-        val targetX = screenWidth / 2f
-        val targetY = screenHeight - 100f - closeTargetSize / 2f
-
+        // Calculate distance from widget touch point to close target center
         val distance = Math.sqrt(
-            Math.pow((x - targetX).toDouble(), 2.0) +
-            Math.pow((y - targetY).toDouble(), 2.0)
+            Math.pow((x - targetCenterX).toDouble(), 2.0) +
+            Math.pow((y - targetCenterY).toDouble(), 2.0)
         ).toFloat()
 
-        // Widget closes when dropped inside the circle
+        // Widget closes when its touch point is INSIDE the circle
         return distance < closeTargetSize / 2f
     }
     

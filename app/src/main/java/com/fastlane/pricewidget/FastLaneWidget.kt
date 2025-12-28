@@ -156,24 +156,33 @@ class FastLaneWidget : AppWidgetProvider() {
     private fun fetchPriceAndUpdate(context: Context) {
         // Show loading state
         showLoadingState(context)
-        
+
         Thread {
             try {
                 val price = PriceApi.getCurrentPrice()
-                
-                // Update this widget directly
-                updateWidgetWithPriceInternal(context, price)
-                
-                // Also broadcast to save price (FloatingWidget will update itself if clicked)
-                PriceUpdateReceiver.broadcastPriceUpdate(context, price)
-                
-                // Schedule next update if in active hours
-                if (isActiveHours(context)) {
-                    scheduleNextUpdate(context)
+
+                // Run UI updates on main thread
+                Handler(Looper.getMainLooper()).post {
+                    // Update this widget directly
+                    updateWidgetWithPriceInternal(context, price)
+
+                    // Also broadcast to save price
+                    PriceUpdateReceiver.broadcastPriceUpdate(context, price)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                updateWidgetWithError(context)
+                // Run error update on main thread
+                Handler(Looper.getMainLooper()).post {
+                    updateWidgetWithError(context)
+                }
+            } finally {
+                // ALWAYS schedule next update if in active hours, even on error
+                // This ensures auto-refresh continues working
+                Handler(Looper.getMainLooper()).post {
+                    if (isActiveHours(context)) {
+                        scheduleNextUpdate(context)
+                    }
+                }
             }
         }.start()
     }

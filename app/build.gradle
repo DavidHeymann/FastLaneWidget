@@ -11,8 +11,8 @@ android {
         applicationId "com.fastlane.pricewidget"
         minSdk 26
         targetSdk 34
-        versionCode 33008
-        versionName "3.3.0.8"
+        versionCode 33009
+        versionName "3.3.0.9"
     }
 
     signingConfigs {
