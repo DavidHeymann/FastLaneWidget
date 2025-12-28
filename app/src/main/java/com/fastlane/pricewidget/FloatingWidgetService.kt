@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -122,11 +123,11 @@ class FloatingWidgetService : Service() {
     }
 
     private fun setupCloseTarget() {
-        // Calculate close target size in pixels (120dp)
+        // Calculate close target size in pixels (100dp)
         val density = resources.displayMetrics.density
-        closeTargetSize = (120 * density).toInt()
+        closeTargetSize = (100 * density).toInt()
 
-        // Create close target (white circle with black X)
+        // Create close target (transparent circle with white border and white X)
         closeTarget = LayoutInflater.from(this).inflate(R.layout.close_target, null)
         
         closeTargetParams = WindowManager.LayoutParams(
@@ -280,30 +281,26 @@ class FloatingWidgetService : Service() {
             Math.pow((y - targetY).toDouble(), 2.0)
         ).toFloat()
 
-        // Increased detection area - 2x the size of the target
-        val detectionRadius = closeTargetSize * 1.2f
+        // Detection area matches the circle radius exactly
+        val detectionRadius = closeTargetSize / 2f
 
-        // Visual feedback: scale up and add red background when widget is near
+        // Visual feedback: scale up when widget is inside the circle
         if (distance < detectionRadius) {
+            // Widget is in close zone - scale up
             closeTarget?.animate()
                 ?.scaleX(1.3f)
                 ?.scaleY(1.3f)
                 ?.alpha(1f)
-                ?.setDuration(100)
+                ?.setDuration(150)
                 ?.start()
-
-            // Change background to red to indicate drop zone
-            closeTarget?.setBackgroundColor(android.graphics.Color.parseColor("#FF5252"))
         } else {
+            // Widget is outside - normal size
             closeTarget?.animate()
                 ?.scaleX(1.0f)
                 ?.scaleY(1.0f)
-                ?.alpha(0.9f)
-                ?.setDuration(100)
+                ?.alpha(0.8f)
+                ?.setDuration(150)
                 ?.start()
-
-            // Reset to white background
-            closeTarget?.setBackgroundColor(android.graphics.Color.TRANSPARENT)
         }
     }
 
@@ -321,8 +318,8 @@ class FloatingWidgetService : Service() {
             Math.pow((y - targetY).toDouble(), 2.0)
         ).toFloat()
 
-        // Increased detection area - 2x the size for easier dropping
-        return distance < closeTargetSize * 1.2f
+        // Widget closes when dropped inside the circle
+        return distance < closeTargetSize / 2f
     }
     
     private fun refreshPrice() {
@@ -397,9 +394,20 @@ class FloatingWidgetService : Service() {
             }
         }
 
-        // Update background color of the container and set text to black for better readability
+        // Update background color while preserving rounded corners
         val backgroundColor = android.graphics.Color.parseColor(colorHex)
-        floatingContainer?.setBackgroundColor(backgroundColor)
+
+        // Create a rounded rectangle drawable with the new color
+        val drawable = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = 24f * resources.displayMetrics.density // 24dp radius
+            setColor(backgroundColor)
+            setStroke(
+                (2 * resources.displayMetrics.density).toInt(),
+                android.graphics.Color.parseColor("#E0E0E0")
+            )
+        }
+        floatingContainer?.background = drawable
 
         // Set text color to black for maximum contrast
         val textColor = android.graphics.Color.BLACK

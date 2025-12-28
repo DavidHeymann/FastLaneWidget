@@ -395,12 +395,26 @@ class FastLaneWidget : AppWidgetProvider() {
         val calendar = Calendar.getInstance(TimeZone.getTimeZone("Asia/Jerusalem"))
         val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
         val hourOfDay = calendar.get(Calendar.HOUR_OF_DAY)
-        
-        // Sunday (1) to Thursday (5) in Calendar, 07:00 to 12:00
-        val isSundayToThursday = dayOfWeek >= Calendar.SUNDAY && dayOfWeek <= Calendar.THURSDAY
-        val isActiveTime = hourOfDay in 7..11
-        
-        return isSundayToThursday && isActiveTime
+
+        // Check if auto-update is enabled
+        if (!WidgetPreferences.isAutoUpdateEnabled(applicationContext)) {
+            return false
+        }
+
+        // Get configured hours from preferences
+        val startHour = WidgetPreferences.getUpdateStartHour(applicationContext)
+        val endHour = WidgetPreferences.getUpdateEndHour(applicationContext)
+
+        // Get active days from preferences
+        val activeDays = WidgetPreferences.getActiveDays(applicationContext)
+
+        // Check if today is an active day
+        val isDayActive = activeDays.contains(dayOfWeek)
+
+        // Check if current hour is within active time range
+        val isActiveTime = hourOfDay in startHour until endHour
+
+        return isDayActive && isActiveTime
     }
 
     private fun scheduleUpdates(context: Context) {
@@ -409,12 +423,14 @@ class FastLaneWidget : AppWidgetProvider() {
 
     private fun scheduleNextUpdate(context: Context) {
         stopScheduledUpdates()
-        
+
         if (isActiveHours()) {
             updateRunnable = Runnable {
                 fetchPriceAndUpdate(context)
             }
-            handler.postDelayed(updateRunnable!!, 20000) // 20 seconds
+            // Get interval from preferences (in seconds), convert to milliseconds
+            val intervalSeconds = WidgetPreferences.getUpdateInterval(context)
+            handler.postDelayed(updateRunnable!!, (intervalSeconds * 1000).toLong())
         }
     }
 
