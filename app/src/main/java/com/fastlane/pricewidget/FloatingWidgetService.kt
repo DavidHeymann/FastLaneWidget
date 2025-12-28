@@ -1,5 +1,6 @@
 package com.fastlane.pricewidget
 
+import android.app.AlertDialog
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -18,7 +19,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
-import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -182,45 +182,45 @@ class FloatingWidgetService : Service() {
     }
 
     private fun showContextMenu() {
-        // Create a PopupMenu anchored to the floating widget
-        val popupMenu = PopupMenu(this, floatingView)
+        // Provide haptic feedback for long press
+        floatingView?.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
 
-        // Add menu items (matching the screenshot style)
-        popupMenu.menu.add(0, 1, 0, "רענן מחיר")
-        popupMenu.menu.add(0, 2, 1, "הגדרות")
-        popupMenu.menu.add(0, 3, 2, "הסרת וידג'ט")
+        // Create dialog with menu options
+        val options = arrayOf("רענן מחיר", "הגדרות", "הסרת וידג'ט")
 
-        popupMenu.setOnMenuItemClickListener { menuItem ->
-            when (menuItem.itemId) {
-                1 -> {
+        val builder = AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+        builder.setItems(options) { dialog, which ->
+            when (which) {
+                0 -> {
                     // Refresh price
                     refreshPrice()
-                    true
                 }
-                2 -> {
+                1 -> {
                     // Open settings (MainActivity)
                     val intent = Intent(this, MainActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     startActivity(intent)
-                    true
                 }
-                3 -> {
+                2 -> {
                     // Remove widget
                     WidgetPreferences.setFloatingWidgetEnabled(this, false)
                     Toast.makeText(this, "Widget צף הוסר", Toast.LENGTH_SHORT).show()
                     stopSelf()
-                    true
                 }
-                else -> false
             }
+            dialog.dismiss()
         }
 
-        // Provide haptic feedback for long press
-        floatingView?.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-
-        // Show the menu
-        popupMenu.show()
+        // Create and show dialog with TYPE_APPLICATION_OVERLAY
+        val dialog = builder.create()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        } else {
+            @Suppress("DEPRECATION")
+            dialog.window?.setType(WindowManager.LayoutParams.TYPE_PHONE)
+        }
+        dialog.show()
     }
 
     private fun refreshPrice() {
