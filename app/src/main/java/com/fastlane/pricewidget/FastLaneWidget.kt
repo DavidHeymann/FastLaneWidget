@@ -1,5 +1,6 @@
 package com.fastlane.pricewidget
 
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -17,9 +18,9 @@ class FastLaneWidget : AppWidgetProvider() {
 
     companion object {
         const val ACTION_REFRESH = "com.fastlane.pricewidget.REFRESH_WIDGET"
-        private val handler = Handler(Looper.getMainLooper())
-        private var updateRunnable: Runnable? = null
-        
+        const val ACTION_AUTO_UPDATE = "com.fastlane.pricewidget.AUTO_UPDATE"
+        private const val AUTO_UPDATE_REQUEST_CODE = 1001
+
         fun updateAllWidgets(context: Context) {
             val intent = Intent(context, FastLaneWidget::class.java).apply {
                 action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
@@ -29,7 +30,7 @@ class FastLaneWidget : AppWidgetProvider() {
             intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
             context.sendBroadcast(intent)
         }
-        
+
         /**
          * Update all widgets with a specific price
          */
@@ -62,10 +63,19 @@ class FastLaneWidget : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        
+
         when (intent.action) {
             ACTION_REFRESH, AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
                 fetchPriceAndUpdate(context)
+            }
+            ACTION_AUTO_UPDATE -> {
+                // Auto-update triggered by AlarmManager
+                if (isActiveHours(context)) {
+                    fetchPriceAndUpdate(context)
+                } else {
+                    // Not in active hours anymore, stop scheduling
+                    stopScheduledUpdates(context)
+                }
             }
         }
     }
@@ -78,7 +88,7 @@ class FastLaneWidget : AppWidgetProvider() {
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        stopScheduledUpdates()
+        stopScheduledUpdates(context)
     }
 
     private fun updateAppWidget(
@@ -170,6 +180,7 @@ class FastLaneWidget : AppWidgetProvider() {
                     PriceUpdateReceiver.broadcastPriceUpdate(context, price)
                 }
             } catch (e: Exception) {
+                android.util.Log.e("FastLaneWidget", "Error fetching price: ${e.message}", e)
                 e.printStackTrace()
                 // Run error update on main thread
                 Handler(Looper.getMainLooper()).post {
@@ -179,9 +190,7 @@ class FastLaneWidget : AppWidgetProvider() {
                 // ALWAYS schedule next update if in active hours, even on error
                 // This ensures auto-refresh continues working
                 Handler(Looper.getMainLooper()).post {
-                    if (isActiveHours(context)) {
-                        scheduleNextUpdate(context)
-                    }
+                    scheduleUpdates(context)
                 }
             }
         }.start()
@@ -427,24 +436,58 @@ class FastLaneWidget : AppWidgetProvider() {
     }
 
     private fun scheduleUpdates(context: Context) {
-        scheduleNextUpdate(context)
-    }
+        // Cancel any existing alarms first
+        stopScheduledUpdates(context)
 
-    private fun scheduleNextUpdate(context: Context) {
-        stopScheduledUpdates()
-
-        if (isActiveHours(context)) {
-            updateRunnable = Runnable {
-                fetchPriceAndUpdate(context)
-            }
-            // Get interval from preferences (in seconds), convert to milliseconds
-            val intervalSeconds = WidgetPreferences.getUpdateInterval(context)
-            handler.postDelayed(updateRunnable!!, (intervalSeconds * 1000).toLong())
+        // Only schedule if in active hours
+        if (!isActiveHours(context)) {
+            return
         }
+
+        // Use AlarmManager for persistent scheduling (survives process death)
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        val intent = Intent(context, FastLaneWidget::class.java).apply {
+            action = ACTION_AUTO_UPDATE
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            AUTO_UPDATE_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Get interval from preferences (in seconds), convert to milliseconds
+        val intervalSeconds = WidgetPreferences.getUpdateInterval(context)
+        val intervalMillis = intervalSeconds * 1000L
+
+        // Calculate next trigger time
+        val triggerAtMillis = System.currentTimeMillis() + intervalMillis
+
+        // Use setExactAndAllowWhileIdle for precise timing even in Doze mode
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            triggerAtMillis,
+            pendingIntent
+        )
     }
 
-    private fun stopScheduledUpdates() {
-        updateRunnable?.let { handler.removeCallbacks(it) }
-        updateRunnable = null
+    private fun stopScheduledUpdates(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        val intent = Intent(context, FastLaneWidget::class.java).apply {
+            action = ACTION_AUTO_UPDATE
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            AUTO_UPDATE_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        alarmManager.cancel(pendingIntent)
+        pendingIntent.cancel()
     }
 }

@@ -18,6 +18,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
+import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -28,25 +29,20 @@ class FloatingWidgetService : Service() {
     private var windowManager: WindowManager? = null
     private var floatingView: View? = null
     private var floatingContainer: View? = null
-    private var closeTarget: View? = null
-    private var closeIcon: ImageView? = null
     private var priceText: TextView? = null
     private var shekelText: TextView? = null
     private var progressBar: ProgressBar? = null
-    
+
     private var initialX = 0
     private var initialY = 0
     private var initialTouchX = 0f
     private var initialTouchY = 0f
     private var isDragging = false
     private var isLongPressing = false
-    
+
     private val longPressHandler = Handler(Looper.getMainLooper())
     private val LONG_PRESS_TIMEOUT = 500L
-    
-    private var closeTargetParams: WindowManager.LayoutParams? = null
-    private var closeTargetSize = 0 // Will be calculated from dp
-    
+
     private lateinit var params: WindowManager.LayoutParams
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -103,18 +99,17 @@ class FloatingWidgetService : Service() {
         // Get opacity preference
         val opacity = WidgetPreferences.getFloatingOpacity(this)
         floatingView?.alpha = opacity
-        
+
         windowManager?.addView(floatingView, params)
-        
-        setupCloseTarget()
+
         setupTouchListener()
-        
+
         // Load last saved price if available
         val lastPrice = WidgetPreferences.getLastPrice(this)
         if (lastPrice > 0) {
             updatePriceDisplay(lastPrice)
         }
-        
+
         // Initial price fetch
         refreshPrice()
     }
@@ -124,47 +119,11 @@ class FloatingWidgetService : Service() {
         return START_STICKY
     }
 
-    private fun setupCloseTarget() {
-        // Calculate close target size in pixels (70dp)
-        val density = resources.displayMetrics.density
-        closeTargetSize = (70 * density).toInt()
-
-        // Create close target (transparent circle with white border and white X)
-        closeTarget = LayoutInflater.from(this).inflate(R.layout.close_target, null)
-        closeIcon = closeTarget?.findViewById(R.id.close_icon)
-
-        // Position at bottom center with proper margins to avoid clipping
-        val displayMetrics = resources.displayMetrics
-        val screenHeight = displayMetrics.heightPixels
-        val bottomMargin = (50 * density).toInt() // 50dp from bottom
-
-        closeTargetParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            // Use TOP gravity and calculate Y position to avoid clipping
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            x = 0
-            y = screenHeight - closeTargetSize - bottomMargin
-        }
-
-        // Don't add to window yet - only show when dragging
-    }
-    
     private fun setupTouchListener() {
         floatingView?.setOnTouchListener(object : View.OnTouchListener {
             override fun onTouch(v: View?, event: MotionEvent?): Boolean {
                 event ?: return false
-                
+
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         initialX = params.x
@@ -173,63 +132,45 @@ class FloatingWidgetService : Service() {
                         initialTouchY = event.rawY
                         isDragging = false
                         isLongPressing = false
-                        
-                        // Start long press timer
+
+                        // Start long press timer to show menu
                         longPressHandler.postDelayed({
-                            isLongPressing = true
-                            showCloseTarget()
+                            if (!isDragging) {
+                                isLongPressing = true
+                                showContextMenu()
+                            }
                         }, LONG_PRESS_TIMEOUT)
-                        
+
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val deltaX = event.rawX - initialTouchX
                         val deltaY = event.rawY - initialTouchY
-                        
+
                         if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
                             if (!isDragging) {
                                 isDragging = true
                                 // Cancel long press if started dragging
-                                if (!isLongPressing) {
-                                    longPressHandler.removeCallbacksAndMessages(null)
-                                }
+                                longPressHandler.removeCallbacksAndMessages(null)
                             }
-                            
+
                             params.x = initialX + deltaX.toInt()
                             params.y = initialY + deltaY.toInt()
                             windowManager?.updateViewLayout(floatingView, params)
-                            
-                            // Update close target appearance if long pressing
-                            if (isLongPressing) {
-                                updateCloseTargetProximity(event.rawX, event.rawY)
-                            }
                         }
                         return true
                     }
                     MotionEvent.ACTION_UP -> {
                         longPressHandler.removeCallbacksAndMessages(null)
-                        
-                        if (isLongPressing) {
-                            hideCloseTarget()
-                            
-                            // Check if dropped on close target
-                            if (isOverCloseTarget(event.rawX, event.rawY)) {
-                                // Close the widget
-                                WidgetPreferences.setFloatingWidgetEnabled(this@FloatingWidgetService, false)
-                                Toast.makeText(this@FloatingWidgetService, "Widget צף כובה", Toast.LENGTH_SHORT).show()
-                                stopSelf()
-                                return true
-                            }
-                        }
-                        
+
                         if (isDragging) {
                             // Save position after dragging
                             WidgetPreferences.setFloatingPosition(this@FloatingWidgetService, params.x, params.y)
                         } else if (!isLongPressing) {
-                            // Click - refresh price
+                            // Quick tap - refresh price
                             refreshPrice()
                         }
-                        
+
                         isDragging = false
                         isLongPressing = false
                         return true
@@ -239,150 +180,56 @@ class FloatingWidgetService : Service() {
             }
         })
     }
-    
-    private fun showCloseTarget() {
-        try {
-            closeTarget?.let {
-                if (it.parent == null) {
-                    windowManager?.addView(it, closeTargetParams)
-                }
-                it.alpha = 0f
-                it.animate()
-                    .alpha(1f)
-                    .scaleX(1.2f)
-                    .scaleY(1.2f)
-                    .setDuration(200)
-                    .start()
+
+    private fun showContextMenu() {
+        // Create a PopupMenu anchored to the floating widget
+        val popupMenu = PopupMenu(this, floatingView)
+
+        // Add menu items (matching the screenshot style)
+        popupMenu.menu.add(0, 1, 0, "רענן מחיר")
+        popupMenu.menu.add(0, 2, 1, "הגדרות")
+        popupMenu.menu.add(0, 3, 2, "הסרת וידג'ט")
+
+        // Set RTL direction for Hebrew text
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            popupMenu.menu.forEach { menuItem ->
+                menuItem.setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
             }
-        } catch (e: Exception) {
-            // View might already be added
         }
-    }
-    
-    private fun hideCloseTarget() {
-        closeTarget?.let {
-            it.animate()
-                .alpha(0f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(200)
-                .withEndAction {
-                    try {
-                        windowManager?.removeView(it)
-                    } catch (e: Exception) {
-                        // View might already be removed
+
+        popupMenu.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                1 -> {
+                    // Refresh price
+                    refreshPrice()
+                    true
+                }
+                2 -> {
+                    // Open settings (MainActivity)
+                    val intent = Intent(this, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
+                    startActivity(intent)
+                    true
                 }
-                .start()
-        }
-    }
-    
-    private fun getCloseTargetCenter(): Pair<Float, Float> {
-        val displayMetrics = resources.displayMetrics
-        val screenWidth = displayMetrics.widthPixels
-        val screenHeight = displayMetrics.heightPixels
-        val density = resources.displayMetrics.density
-        val bottomMargin = (50 * density).toInt()
-
-        // Calculate center of close target
-        val targetCenterX = screenWidth / 2f
-        val targetCenterY = screenHeight - bottomMargin - closeTargetSize / 2f
-
-        return Pair(targetCenterX, targetCenterY)
-    }
-
-    private fun getFloatingWidgetCenter(): Pair<Float, Float> {
-        // Get the current position and size of the floating widget
-        val location = IntArray(2)
-        floatingView?.getLocationOnScreen(location)
-
-        val widgetCenterX = location[0] + (floatingView?.width ?: 0) / 2f
-        val widgetCenterY = location[1] + (floatingView?.height ?: 0) / 2f
-
-        return Pair(widgetCenterX, widgetCenterY)
-    }
-
-    private fun updateCloseTargetProximity(x: Float, y: Float) {
-        val (targetCenterX, targetCenterY) = getCloseTargetCenter()
-
-        // Calculate distance from widget touch point to close target center
-        val distance = Math.sqrt(
-            Math.pow((x - targetCenterX).toDouble(), 2.0) +
-            Math.pow((y - targetCenterY).toDouble(), 2.0)
-        ).toFloat()
-
-        // Circle radius
-        val circleRadius = closeTargetSize / 2f
-
-        // Visual feedback: scale up BOTH circle and X together when widget center is INSIDE circle
-        if (distance < circleRadius) {
-            // Widget center is INSIDE the circle - scale up and make bold
-            closeTarget?.animate()
-                ?.scaleX(1.2f)
-                ?.scaleY(1.2f)
-                ?.alpha(1f)
-                ?.setDuration(150)
-                ?.start()
-
-            // Scale up X icon together with circle
-            closeIcon?.animate()
-                ?.scaleX(1.2f)
-                ?.scaleY(1.2f)
-                ?.setDuration(150)
-                ?.start()
-
-            // Make the circle stroke bolder
-            val drawable = android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.OVAL
-                setColor(android.graphics.Color.TRANSPARENT)
-                setStroke(
-                    (6 * resources.displayMetrics.density).toInt(), // Bolder stroke
-                    android.graphics.Color.WHITE
-                )
+                3 -> {
+                    // Remove widget
+                    WidgetPreferences.setFloatingWidgetEnabled(this, false)
+                    Toast.makeText(this, "Widget צף הוסר", Toast.LENGTH_SHORT).show()
+                    stopSelf()
+                    true
+                }
+                else -> false
             }
-            closeTarget?.background = drawable
-        } else {
-            // Widget is OUTSIDE - normal size and stroke
-            closeTarget?.animate()
-                ?.scaleX(1.0f)
-                ?.scaleY(1.0f)
-                ?.alpha(0.8f)
-                ?.setDuration(150)
-                ?.start()
-
-            // Reset X icon to normal size
-            closeIcon?.animate()
-                ?.scaleX(1.0f)
-                ?.scaleY(1.0f)
-                ?.setDuration(150)
-                ?.start()
-
-            // Reset to normal stroke
-            val drawable = android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.OVAL
-                setColor(android.graphics.Color.TRANSPARENT)
-                setStroke(
-                    (3 * resources.displayMetrics.density).toInt(), // Normal stroke
-                    android.graphics.Color.WHITE
-                )
-            }
-            closeTarget?.background = drawable
         }
+
+        // Provide haptic feedback for long press
+        floatingView?.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+
+        // Show the menu
+        popupMenu.show()
     }
 
-    private fun isOverCloseTarget(x: Float, y: Float): Boolean {
-        val (targetCenterX, targetCenterY) = getCloseTargetCenter()
-
-        // Calculate distance from widget touch point to close target center
-        val distance = Math.sqrt(
-            Math.pow((x - targetCenterX).toDouble(), 2.0) +
-            Math.pow((y - targetCenterY).toDouble(), 2.0)
-        ).toFloat()
-
-        // Widget closes when its touch point is INSIDE the circle
-        return distance < closeTargetSize / 2f
-    }
-    
     private fun refreshPrice() {
         // Show progress
         progressBar?.visibility = View.VISIBLE
@@ -515,19 +362,10 @@ class FloatingWidgetService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        
+
         // Remove handlers
         longPressHandler.removeCallbacksAndMessages(null)
-        
-        // Remove close target
-        try {
-            closeTarget?.let {
-                windowManager?.removeView(it)
-            }
-        } catch (e: Exception) {
-            // Already removed
-        }
-        
+
         // Remove floating view
         if (floatingView != null) {
             windowManager?.removeView(floatingView)
