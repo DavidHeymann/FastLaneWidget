@@ -256,8 +256,9 @@ class FastLaneWidget : AppWidgetProvider() {
                 views.setInt(R.id.widget_container, "setBackgroundColor", backgroundColor)
             }
 
-            // Show loading indicator
-            views.setViewVisibility(R.id.loading_progress, android.view.View.VISIBLE)
+            // Hide refresh button, show loading spinner in its place
+            views.setViewVisibility(R.id.refresh_button, android.view.View.GONE)
+            views.setViewVisibility(R.id.refresh_loading, android.view.View.VISIBLE)
 
             // Update time text to show "מעדכן..." for large layout
             if (layoutId == R.layout.widget_layout) {
@@ -290,10 +291,11 @@ class FastLaneWidget : AppWidgetProvider() {
             }
             
             val views = RemoteViews(context.packageName, layoutId)
-            
-            // Hide loading indicator
-            views.setViewVisibility(R.id.loading_progress, android.view.View.GONE)
-            
+
+            // Hide loading spinner, show refresh button back
+            views.setViewVisibility(R.id.refresh_loading, android.view.View.GONE)
+            views.setViewVisibility(R.id.refresh_button, android.view.View.VISIBLE)
+
             // Update price
             views.setTextViewText(R.id.price_text, price.toString())
             
@@ -387,10 +389,11 @@ class FastLaneWidget : AppWidgetProvider() {
             }
             
             val views = RemoteViews(context.packageName, layoutId)
-            
-            // Hide loading indicator
-            views.setViewVisibility(R.id.loading_progress, android.view.View.GONE)
-            
+
+            // Hide loading spinner, show refresh button back
+            views.setViewVisibility(R.id.refresh_loading, android.view.View.GONE)
+            views.setViewVisibility(R.id.refresh_button, android.view.View.VISIBLE)
+
             views.setTextViewText(R.id.price_text, "!")
             
             if (layoutId == R.layout.widget_layout) {

@@ -21,15 +21,6 @@
             android:contentDescription="@string/app_name"
             android:src="@drawable/logo_small" />
 
-        <!-- Loading indicator for small widget -->
-        <ProgressBar
-            android:id="@+id/loading_progress"
-            style="?android:attr/progressBarStyleSmall"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:layout_marginTop="2dp"
-            android:visibility="gone" />
-
         <!-- Compact price display -->
         <LinearLayout
             android:layout_width="wrap_content"
@@ -73,5 +64,15 @@
         android:textSize="16sp"
         android:alpha="0.7"
         android:contentDescription="רענון" />
+
+    <!-- Loading indicator in same position as refresh button -->
+    <ProgressBar
+        android:id="@+id/refresh_loading"
+        style="?android:attr/progressBarStyleSmall"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="4dp"
+        android:visibility="gone" />
 
 </FrameLayout>
