@@ -168,7 +168,7 @@ class FastLaneWidget : AppWidgetProvider() {
                 PriceUpdateReceiver.broadcastPriceUpdate(context, price)
                 
                 // Schedule next update if in active hours
-                if (isActiveHours()) {
+                if (isActiveHours(context)) {
                     scheduleNextUpdate(context)
                 }
             } catch (e: Exception) {
@@ -391,22 +391,22 @@ class FastLaneWidget : AppWidgetProvider() {
         }
     }
 
-    private fun isActiveHours(): Boolean {
+    private fun isActiveHours(context: Context): Boolean {
         val calendar = Calendar.getInstance(TimeZone.getTimeZone("Asia/Jerusalem"))
         val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
         val hourOfDay = calendar.get(Calendar.HOUR_OF_DAY)
 
         // Check if auto-update is enabled
-        if (!WidgetPreferences.isAutoUpdateEnabled(applicationContext)) {
+        if (!WidgetPreferences.isAutoUpdateEnabled(context)) {
             return false
         }
 
         // Get configured hours from preferences
-        val startHour = WidgetPreferences.getUpdateStartHour(applicationContext)
-        val endHour = WidgetPreferences.getUpdateEndHour(applicationContext)
+        val startHour = WidgetPreferences.getUpdateStartHour(context)
+        val endHour = WidgetPreferences.getUpdateEndHour(context)
 
         // Get active days from preferences
-        val activeDays = WidgetPreferences.getActiveDays(applicationContext)
+        val activeDays = WidgetPreferences.getActiveDays(context)
 
         // Check if today is an active day
         val isDayActive = activeDays.contains(dayOfWeek)
@@ -424,7 +424,7 @@ class FastLaneWidget : AppWidgetProvider() {
     private fun scheduleNextUpdate(context: Context) {
         stopScheduledUpdates()
 
-        if (isActiveHours()) {
+        if (isActiveHours(context)) {
             updateRunnable = Runnable {
                 fetchPriceAndUpdate(context)
             }
