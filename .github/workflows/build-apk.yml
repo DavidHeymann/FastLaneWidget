@@ -24,32 +24,66 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Setup Gradle with built-in caching (handles dependencies automatically)
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
+    # Cache wrapper files (reuse existing gradle-wrapper-8.0 cache)
+    - name: Cache Gradle wrapper files
+      id: cache-wrapper
+      uses: actions/cache@v3
+      with:
+        path: |
+          gradle/wrapper/gradle-wrapper.jar
+          gradlew
+          gradlew.bat
+        key: gradle-wrapper-8.0
 
-    # Fallback: Generate wrapper if files are missing
-    - name: Check if wrapper exists
-      id: check-wrapper
+    # Create hash of dependencies and build config (excluding version changes)
+    - name: Create dependencies hash
+      id: deps-hash
       run: |
-        if [ ! -f "gradlew" ] || [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-          echo "wrapper_missing=true" >> $GITHUB_OUTPUT
+        # Extract dependencies block from build.gradle
+        if grep -q "^dependencies {" app/build.gradle; then
+          sed -n '/^dependencies {/,/^}/p' app/build.gradle > /tmp/deps.txt
         else
-          echo "wrapper_missing=false" >> $GITHUB_OUTPUT
+          cat app/build.gradle > /tmp/deps.txt
         fi
+        # Extract compileSdk, minSdk, targetSdk (but not versionCode/versionName)
+        grep -E "compileSdk|minSdk|targetSdk" app/build.gradle >> /tmp/deps.txt
+        # Include gradle wrapper properties (Gradle version)
+        cat gradle/wrapper/gradle-wrapper.properties >> /tmp/deps.txt
+        # Create hash
+        HASH=$(md5sum /tmp/deps.txt | cut -d' ' -f1)
+        echo "hash=$HASH" >> $GITHUB_OUTPUT
 
-    - name: Install Gradle (if wrapper missing)
-      if: steps.check-wrapper.outputs.wrapper_missing == 'true'
+    # Cache Gradle dependencies (hash changes only when dependencies change)
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: gradle-deps-${{ runner.os }}-${{ steps.deps-hash.outputs.hash }}
+        restore-keys: |
+          gradle-deps-${{ runner.os }}-
+
+    # Only download and generate wrapper if NOT cached
+    - name: Install Gradle
+      if: steps.cache-wrapper.outputs.cache-hit != 'true'
       run: |
-        echo "Wrapper not found, downloading Gradle 8.0..."
-        wget https://services.gradle.org/distributions/gradle-8.0-bin.zip
+        echo "Wrapper not cached, downloading Gradle 8.0..."
+        # Retry up to 3 times with timeout
+        for i in 1 2 3; do
+          if wget --timeout=30 --tries=3 https://services.gradle.org/distributions/gradle-8.0-bin.zip; then
+            break
+          fi
+          echo "Download attempt $i failed, retrying..."
+          sleep 5
+        done
         unzip -q gradle-8.0-bin.zip
         export GRADLE_HOME=$PWD/gradle-8.0
         export PATH=$GRADLE_HOME/bin:$PATH
         gradle --version
 
-    - name: Generate Gradle Wrapper (if wrapper missing)
-      if: steps.check-wrapper.outputs.wrapper_missing == 'true'
+    - name: Generate Gradle Wrapper
+      if: steps.cache-wrapper.outputs.cache-hit != 'true'
       run: |
         echo "Generating wrapper files..."
         export GRADLE_HOME=$PWD/gradle-8.0

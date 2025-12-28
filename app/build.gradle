@@ -11,8 +11,8 @@ android {
         applicationId "com.fastlane.pricewidget"
         minSdk 26
         targetSdk 34
-        versionCode 33018
-        versionName "3.3.1.8"
+        versionCode 33019
+        versionName "3.3.1.9"
     }
 
     signingConfigs {
@@ -56,7 +56,4 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.cardview:cardview:1.0.0'
-    
-    // FloatingView library for ChatHeads-style floating widgets
-    implementation 'com.github.recruit-lifestyle:FloatingView:2.4.5'
 }
