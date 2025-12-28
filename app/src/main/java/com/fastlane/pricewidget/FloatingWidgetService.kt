@@ -190,13 +190,6 @@ class FloatingWidgetService : Service() {
         popupMenu.menu.add(0, 2, 1, "הגדרות")
         popupMenu.menu.add(0, 3, 2, "הסרת וידג'ט")
 
-        // Set RTL direction for Hebrew text
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            popupMenu.menu.forEach { menuItem ->
-                menuItem.setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
-            }
-        }
-
         popupMenu.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 1 -> {
