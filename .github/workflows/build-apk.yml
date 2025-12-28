@@ -23,17 +23,44 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-    
+
+    # Cache generated wrapper files (gradlew, gradle-wrapper.jar, etc)
+    - name: Cache Gradle wrapper files
+      id: cache-wrapper
+      uses: actions/cache@v3
+      with:
+        path: |
+          gradle/wrapper/gradle-wrapper.jar
+          gradlew
+          gradlew.bat
+        key: gradle-wrapper-8.0
+
+    # Cache Gradle dependencies (libraries needed for building)
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          gradle-${{ runner.os }}-
+
+    # Only download and generate wrapper if NOT cached
     - name: Install Gradle
+      if: steps.cache-wrapper.outputs.cache-hit != 'true'
       run: |
+        echo "Wrapper not cached, downloading Gradle 8.0..."
         wget https://services.gradle.org/distributions/gradle-8.0-bin.zip
         unzip -q gradle-8.0-bin.zip
         export GRADLE_HOME=$PWD/gradle-8.0
         export PATH=$GRADLE_HOME/bin:$PATH
         gradle --version
-    
+
     - name: Generate Gradle Wrapper
+      if: steps.cache-wrapper.outputs.cache-hit != 'true'
       run: |
+        echo "Generating wrapper files..."
         export GRADLE_HOME=$PWD/gradle-8.0
         export PATH=$GRADLE_HOME/bin:$PATH
         gradle wrapper --gradle-version 8.0
