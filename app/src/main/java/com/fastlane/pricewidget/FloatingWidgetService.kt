@@ -268,15 +268,12 @@ class FloatingWidgetService : Service() {
                 Handler(Looper.getMainLooper()).post {
                     // Hide progress
                     progressBar?.visibility = View.GONE
-                    
+
                     // Update this floating widget directly
                     updatePriceDisplay(price)
-                    
+
                     // Also broadcast to update home widgets and save price
                     PriceUpdateReceiver.broadcastPriceUpdate(this, price)
-                    
-                    // Show feedback toast
-                    Toast.makeText(this, "עודכן: ₪$price", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 // Hide progress on error
